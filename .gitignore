@@ -22,6 +22,6 @@ Thumbs.db
 .idea/
 .vscode/
 
-# === 생성물 (필요에 따라 주석 해제) ===
-# data/outputs/        # 생성된 PPTX 등 결과물
-# data/inbox/          # 사용자가 넣은 원본 (개인자료면 제외 고려)
+# === 데이터 (Google 공유 드라이브가 단일 소스 — git 추적 제외) ===
+# data 폴더는 정션으로 공유 드라이브에 연결됨. 버전관리는 Drive 파일 기록 사용.
+data/
