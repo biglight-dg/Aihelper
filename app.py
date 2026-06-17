@@ -5,7 +5,7 @@ from tools.file_tools import load_db, save_knowledge_file
 from tools.reader import read_inbox_files, fetch_url, save_to_inbox, read_pdf
 from tools.sources import (
     load_sources, add_rss, remove_rss, add_expert, remove_expert,
-    save_social_post,
+    save_social_post, auto_collect_kind, sync_expert_feeds,
 )
 from tools.news import (
     collect_news, collect_news_daily, recent_items, sources_in_news,
@@ -466,6 +466,16 @@ def _render_digest(digest: dict) -> None:
                     st.markdown(f"- {x}")
 
 
+def _sort_items(items, mode, date_field, title_field="title"):
+    """목록을 정렬 모드에 따라 정렬한다(원본 비변형).
+
+    mode: '최신순' | '오래된순' | '제목순'. date_field 비교는 ISO 문자열 기준.
+    """
+    if mode == "제목순":
+        return sorted(items, key=lambda x: (x.get(title_field) or "").lower())
+    return sorted(items, key=lambda x: x.get(date_field) or "", reverse=(mode == "최신순"))
+
+
 # ── 전역 헤더 ──────────────────────────────────────────────────
 st.title("📚 나만의 지식 베이스")
 st.caption("문서를 모아두면 Claude Code(팀장)가 교육 자료로 정리해 줍니다.")
@@ -497,13 +507,10 @@ with st.sidebar:
     sb_c2.metric("지식 문서", len(_sb_db_items))
 
 
-tab_inbox, tab_sources, tab_news, tab_memo, tab_kb, tab_cur, tab_aux, tab_agents = st.tabs(
-    ["📥 받은 문서", "📡 소스", "📰 최근 뉴스", "✏️ 직접 메모", "📚 지식 베이스", "📋 커리큘럼",
-     "🧰 보조 프로그램", "🤖 에이전트"]
-)
+# ── 탭 본문: 각 탭을 렌더 함수로 정의 (맨 아래 그룹 네비에서 호출) ──
 
 # ── 탭 1: 받은 문서 ────────────────────────────────────────────
-with tab_inbox:
+def render_inbox():
     st.markdown("## 📥 받은 문서")
     st.caption("파일을 올리거나 링크를 입력하면 inbox에 저장됩니다. 그 다음 Claude Code에 '정리해줘'라고 요청하세요.")
 
@@ -601,7 +608,7 @@ with tab_inbox:
         st.info("inbox가 비어 있습니다. 파일을 올리거나 URL을 입력해 보세요.")
 
 # ── 탭: 소스 (RSS · 전문가 SNS) ─────────────────────────────────
-with tab_sources:
+def render_sources():
     st.markdown("## 📡 소스")
     st.caption(
         "RSS 피드와 전문가 SNS를 등록해 자료를 inbox로 자동 수집합니다. "
@@ -643,7 +650,7 @@ with tab_sources:
         st.markdown("### 👤 전문가 SNS")
         with st.form("add_expert_form", clear_on_submit=True):
             ex_name = st.text_input("이름", placeholder="예: 홍길동")
-            ex_platform = st.selectbox("플랫폼", ["instagram", "x", "linkedin", "threads", "web"])
+            ex_platform = st.selectbox("플랫폼", ["youtube", "instagram", "x", "linkedin", "threads", "web"])
             ex_url = st.text_input("프로필 URL", placeholder="https://...")
             ex_note = st.text_input("메모 (선택)", placeholder="예: 프롬프트 엔지니어링 전문")
             if st.form_submit_button("전문가 추가") and ex_url.strip():
@@ -665,10 +672,26 @@ with tab_sources:
             for e in src["experts"]:
                 c1, c2 = st.columns([5, 1])
                 note = f" · {e['note']}" if e.get("note") else ""
+                # 자동수집(RSS) 상태 배지 — feed_url 연결 전까지 계속 표시
+                kind = auto_collect_kind(e["url"])
+                if e.get("feed_url"):
+                    badge = "✅ 자동수집 중 (RSS 연결됨)"
+                elif kind is None:
+                    badge = "⚠️ 자동수집 불가 — 이 플랫폼은 RSS가 없어요. 아래 '게시물 → inbox'로 직접 가져오세요"
+                elif kind == "youtube":
+                    badge = "🔗 RSS 연결 가능 — 오른쪽 'RSS 연결' 버튼을 누르세요"
+                else:
+                    badge = "🔗 블로그 RSS 연결 가능 — Claude Code에 'RSS 피드 추가'로 등록하세요"
                 c1.markdown(
-                    f"**{e['name']}** ({e['platform']}){note}  \n<small>{e['url']}</small>",
+                    f"**{e['name']}** ({e['platform']}){note}  \n"
+                    f"<small>{e['url']}</small>  \n<small>{badge}</small>",
                     unsafe_allow_html=True,
                 )
+                # 유튜브인데 아직 RSS 미연결이면 즉시 연결 버튼
+                if not e.get("feed_url") and kind == "youtube":
+                    if c2.button("RSS 연결", key=f"linkrss_{e['url']}"):
+                        sync_expert_feeds()
+                        st.rerun()
                 if c2.button("삭제", key=f"delex_{e['url']}"):
                     remove_expert(e["url"])
                     st.rerun()
@@ -676,7 +699,7 @@ with tab_sources:
             st.info("아직 등록된 전문가가 없습니다.")
 
 # ── 탭: 최근 뉴스 (뉴스 스트림 + 주간 브리핑) ───────────────────
-with tab_news:
+def render_news():
     st.markdown("## 📰 최근 뉴스")
     st.caption(
         "구독한 RSS에서 모은 AI 소식이 쌓입니다(앱 열 때 하루 1회 자동 수집). "
@@ -721,11 +744,23 @@ with tab_news:
             src_opts = ["전체"] + sources_in_news()
             sel_src = st.selectbox("출처", src_opts, key="news_source")
 
+        c4, c5 = st.columns([2, 1])
+        with c4:
+            news_q = st.text_input("🔍 제목·요약 검색", placeholder="키워드 입력", key="news_q")
+        with c5:
+            news_sort = st.selectbox("정렬", ["최신순", "오래된순"], key="news_sort")
+
         src_filter = None if sel_src == "전체" else sel_src
         items = recent_items(days=period, source=src_filter)
-        st.markdown(f"**뉴스 {len(items)}건 · 최근 {period}일**")
+        q = news_q.strip().lower()
+        if q:
+            items = [it for it in items
+                     if q in (it.get("title") or "").lower()
+                     or q in (it.get("summary") or "").lower()]
+        items = _sort_items(items, news_sort, "published")
+        st.markdown(f"**뉴스 {len(items)}건 · 최근 {period}일 · {news_sort}**")
         if not items:
-            st.info("아직 수집된 뉴스가 없습니다. '지금 수집'을 눌러보세요.")
+            st.info("조건에 맞는 뉴스가 없습니다. 기간·출처·검색어를 바꿔보세요.")
         else:
             for it in items:
                 pub = f" · {it['published'][:16]}" if it.get("published") else ""
@@ -748,7 +783,7 @@ with tab_news:
                 _render_digest(d)
 
 # ── 탭 2: 직접 메모 ────────────────────────────────────────────
-with tab_memo:
+def render_memo():
     st.markdown("## ✏️ 직접 메모")
     st.caption("마크다운으로 메모를 작성하고 inbox에 저장하세요. 저장 후 Claude Code에 '정리해줘'라고 요청하세요.")
 
@@ -804,7 +839,7 @@ with tab_memo:
         st.success(st.session_state["memo_saved_msg"] + "  ‘새 메모 작성’으로 폼을 비울 수 있어요.")
 
 # ── 탭 3: 지식 베이스 ──────────────────────────────────────────
-with tab_kb:
+def render_kb():
     st.markdown("## 📚 지식 베이스")
     st.caption("Claude Code가 정리해 저장한 문서들입니다.")
 
@@ -816,20 +851,24 @@ with tab_kb:
     else:
         all_tags = sorted({tag for item in items for tag in item.get("tags", [])})
 
-        col_search, col_tag = st.columns([2, 1])
+        col_search, col_tag, col_sort = st.columns([2, 1, 1])
         with col_search:
             query = st.text_input(
                 "🔍 제목·태그 검색", placeholder="키워드 입력 (예: ChatGPT, 프롬프트)", key="kb_search"
             )
         with col_tag:
-            selected_tag = st.selectbox("태그 필터", ["전체"] + all_tags)
+            selected_tag = st.selectbox("태그 필터", ["전체"] + all_tags, key="kb_tag")
+        with col_sort:
+            sort_mode = st.selectbox("정렬", ["최신순", "오래된순", "제목순"], key="kb_sort")
 
         # 검색어가 있으면 Curator.search() 결과를 기준 목록으로, 없으면 전체
         base = Curator().search(query.strip()) if query.strip() else items
         # 태그 필터 AND 결합
         filtered = base if selected_tag == "전체" else [i for i in base if selected_tag in i.get("tags", [])]
+        # 정렬(생성일/제목) — reversed 루프 대신 명시적 정렬
+        filtered = _sort_items(filtered, sort_mode, "created_at")
 
-        caption = f"{len(filtered)}개 문서"
+        caption = f"{len(filtered)}개 문서  ·  {sort_mode}"
         if query.strip():
             caption += f"  ·  '{query.strip()}' 검색 결과"
         st.caption(caption)
@@ -837,7 +876,7 @@ with tab_kb:
         if not filtered:
             st.info("조건에 맞는 문서가 없습니다. 검색어나 태그 필터를 바꿔보세요.")
 
-        for item in reversed(filtered):
+        for item in filtered:
             title = item.get("title", "제목 없음")
             tags = item.get("tags", [])
             path = Path(item.get("path", ""))
@@ -871,7 +910,7 @@ with tab_kb:
                     st.warning("파일을 찾을 수 없습니다.")
 
 # ── 탭 4: 커리큘럼 ─────────────────────────────────────────────
-with tab_cur:
+def render_curriculum():
     # ── session_state 초기화 ────────────────────────────────────
     if "cur_selected_id" not in st.session_state:
         st.session_state["cur_selected_id"] = None
@@ -1182,7 +1221,7 @@ with tab_cur:
                         _render_slide_deck(view_slides)
 
 # ── 탭 5: 보조 프로그램 ────────────────────────────────────────
-with tab_aux:
+def render_aux():
     st.markdown("## 🧰 보조 프로그램")
     st.caption("확장프로그램·단축키 사이트·유용한 툴을 모아 관리합니다. "
                "제목을 클릭하면 브라우저(크롬)에서 바로 열립니다.")
@@ -1213,12 +1252,32 @@ with tab_aux:
 
     st.divider()
 
-    aux_items = load_aux_db().get("items", [])
-    if not aux_items:
+    aux_all = load_aux_db().get("items", [])
+    if not aux_all:
         st.info("아직 등록된 보조 프로그램이 없습니다. 위 '추가' 폼을 쓰거나, "
                 "Claude Code에 `\"[툴 링크] 보조 프로그램에 추가해줘\"`라고 말해보세요.")
     else:
-        st.caption(f"총 {len(aux_items)}개")
+        ac_q, ac_sort = st.columns([2, 1])
+        with ac_q:
+            aux_q = st.text_input("🔍 이름·설명·태그 검색", placeholder="키워드 입력", key="aux_q")
+        with ac_sort:
+            aux_sort = st.selectbox("정렬", ["최신순", "오래된순", "제목순"], key="aux_sort")
+
+        q = aux_q.strip().lower()
+        aux_items = aux_all
+        if q:
+            aux_items = [
+                i for i in aux_items
+                if q in (i.get("title") or "").lower()
+                or q in (i.get("description") or "").lower()
+                or any(q in (t or "").lower() for t in i.get("tags", []))
+            ]
+        # 카테고리 내 카드 순서가 정렬을 따르도록 미리 정렬
+        aux_items = _sort_items(aux_items, aux_sort, "added_at")
+
+        st.caption(f"총 {len(aux_items)}개  ·  {aux_sort}")
+        if not aux_items:
+            st.info("조건에 맞는 보조 프로그램이 없습니다. 검색어를 바꿔보세요.")
         # 분류별 그룹핑 (표준 분류 순서 + 기타 분류)
         present_cats = [c for c in CATEGORIES if any(i.get("category") == c for i in aux_items)]
         extra_cats = sorted({i.get("category", "기타") for i in aux_items} - set(CATEGORIES))
@@ -1249,7 +1308,7 @@ with tab_aux:
                                 st.rerun()
 
 # ── 탭 6: 에이전트 ─────────────────────────────────────────────
-with tab_agents:
+def render_agents():
     st.markdown("## 🤖 에이전트 현황")
     st.caption("Claude Code 세션이 팀장 역할을 하며 아래 에이전트들을 오케스트레이션합니다.")
 
@@ -1292,3 +1351,32 @@ ChatGPT 관련 자료 찾아줘    → 큐레이터가 검색
 AI 기초 커리큘럼 만들어줘    → 커리큘럼 에이전트가 생성
 커리큘럼 슬라이드 업데이트해줘 → 슬라이드 JSON + PPTX 재생성
 /커리큘럼                   → 커리큘럼 전용 슬래시 커맨드""", language="text")
+
+
+# ── 상단 그룹 네비 (그룹바 + 그룹별 하위탭) ────────────────────────
+GROUPS = {
+    "📥 수집": [
+        ("📥 받은 문서", render_inbox),
+        ("✏️ 직접 메모", render_memo),
+        ("📡 소스", render_sources),
+        ("📰 최근 뉴스", render_news),
+    ],
+    "📚 지식·학습": [
+        ("📚 지식 베이스", render_kb),
+        ("📋 커리큘럼", render_curriculum),
+        ("🧰 보조 프로그램", render_aux),
+    ],
+    "⚙ 시스템": [
+        ("🤖 에이전트", render_agents),
+    ],
+}
+
+_group = st.segmented_control(
+    "메뉴", list(GROUPS), default="📥 수집",
+    key="nav_group", label_visibility="collapsed",
+)
+_group = _group or "📥 수집"  # segmented_control은 해제 시 None → 폴백
+_subtabs = GROUPS[_group]
+for _tab, (_label, _render_fn) in zip(st.tabs([t for t, _ in _subtabs]), _subtabs):
+    with _tab:
+        _render_fn()

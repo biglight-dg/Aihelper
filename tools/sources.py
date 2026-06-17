@@ -11,6 +11,7 @@
 워치리스트 저장소: data/sources.json (data는 Google 공유 드라이브 정션 → 팀 공동 편집)
 """
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -62,14 +63,23 @@ def remove_rss(url: str) -> dict:
 
 
 def add_expert(name: str, platform: str, url: str, note: str = "") -> dict:
-    """전문가를 SNS 워치리스트에 추가(중복 URL은 무시)."""
+    """전문가를 SNS 워치리스트에 추가(중복 URL은 무시).
+
+    유튜브 채널이면 RSS 피드로 자동 변환해 add_rss()로 연결하고,
+    그 주소를 expert["feed_url"]에 기록한다(= 자동수집 대상이 됨).
+    RSS가 불가능한 SNS(인스타·X·스레드·링크드인)는 feed_url=None.
+    """
+    name, platform, url, note = name.strip(), platform.strip(), url.strip(), note.strip()
     data = load_sources()
     if not any(e["url"] == url for e in data["experts"]):
+        feed_url = youtube_channel_to_feed(url) if _is_youtube(url) else None
         data["experts"].append({
-            "name": name.strip(), "platform": platform.strip(),
-            "url": url.strip(), "note": note.strip(),
+            "name": name, "platform": platform,
+            "url": url, "note": note, "feed_url": feed_url,
         })
         save_sources(data)
+        if feed_url:
+            add_rss(name, feed_url, category="전문가 유튜브")
     return data
 
 
@@ -78,6 +88,74 @@ def remove_expert(url: str) -> dict:
     data["experts"] = [e for e in data["experts"] if e["url"] != url]
     save_sources(data)
     return data
+
+
+# ── 유튜브 채널 → RSS 변환 / 자동수집 판정 ───────────────────────
+
+def _is_youtube(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return "youtube.com" in host or "youtu.be" in host
+
+
+def youtube_channel_to_feed(url: str) -> str | None:
+    """유튜브 채널 URL(@handle 또는 /channel/UC...)을 RSS 피드 URL로 변환한다.
+
+    - /channel/UC... 형태면 네트워크 없이 바로 구성
+    - @handle 등은 채널 페이지 HTML에서 channelId를 추출
+    실패하면 None (영상 단일 링크·비유튜브 등).
+    """
+    if not _is_youtube(url):
+        return None
+    m = re.search(r"/channel/(UC[\w-]{22})", url)
+    if m:
+        return f"https://www.youtube.com/feeds/videos.xml?channel_id={m.group(1)}"
+    try:
+        html = requests.get(url, timeout=10, headers=HEADERS).text
+        m = (re.search(r'"(?:channelId|externalId)":"(UC[\w-]{22})"', html)
+             or re.search(r'youtube\.com/channel/(UC[\w-]{22})', html))
+        if m:
+            return f"https://www.youtube.com/feeds/videos.xml?channel_id={m.group(1)}"
+    except Exception:
+        pass
+    return None
+
+
+def auto_collect_kind(url: str) -> str | None:
+    """자동수집(RSS) 가능 종류를 판정한다.
+
+    "youtube" = 유튜브 채널(자동 RSS), "web" = 블로그 등 RSS 후보,
+    None = 인스타·X·스레드·링크드인(공식 RSS 없음 → 수동 수집).
+    """
+    if _is_youtube(url):
+        return "youtube"
+    if _platform_of(url) in ("instagram", "x", "linkedin", "threads"):
+        return None
+    return "web"
+
+
+def sync_expert_feeds() -> dict:
+    """전문가 중 유튜브인데 아직 feed_url이 없는 항목을 RSS로 자동 연결한다.
+
+    등록 즉시 자동화(add_expert)의 안전망 + 기존 전문가 1회 백필 겸용.
+    매주 스케줄러(AI교육팀_전문가피드동기화)가 호출한다.
+    반환: {"linked": [{name, feed}], "skipped": [{name, platform, url}]}
+    """
+    data = load_sources()
+    linked, skipped = [], []
+    for e in data["experts"]:
+        if e.get("feed_url"):
+            continue
+        feed = youtube_channel_to_feed(e["url"]) if _is_youtube(e["url"]) else None
+        if feed:
+            e["feed_url"] = feed
+            linked.append({"name": e["name"], "feed": feed})
+        else:
+            e.setdefault("feed_url", None)
+            skipped.append({"name": e["name"], "platform": e.get("platform"), "url": e["url"]})
+    save_sources(data)
+    for item in linked:
+        add_rss(item["name"], item["feed"], category="전문가 유튜브")
+    return {"linked": linked, "skipped": skipped}
 
 
 # ── RSS (자동, 키 불필요) ─────────────────────────────────────────

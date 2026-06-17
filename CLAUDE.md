@@ -62,10 +62,25 @@ streamlit run app.py
 
 "[전문가] 워치리스트에 추가"
   → sources.add_expert(name, platform, url, note)
+  → 유튜브 채널이면 add_expert가 RSS 피드로 자동 변환·연결(feed_url 기록) → 자동수집 대상이 됨
 ```
 
 - 앱 **📡 소스** 탭에서 RSS/전문가 등록·관리 (RSS 수집은 **📰 최근 뉴스** 탭이 담당)
 - 인스타/X **전체 크롤링은 하지 않는다**(ToS·차단 위험). 고른 전문가 게시물 링크만 추적한다.
+
+#### 전문가 자동수집(RSS) 규칙 — 플랫폼별로 다름
+
+전문가를 등록하면 플랫폼에 따라 **자동수집 여부가 갈린다.** 핵심: 자동 팔로우업은 `rss`만 돈다.
+
+| 플랫폼 | 자동 RSS | 방식 |
+|--------|:--------:|------|
+| **YouTube 채널** | ✅ | `add_expert`가 channelId 추출 → `feeds/videos.xml?channel_id=`로 변환·연결 (등록 즉시) |
+| **블로그**(티스토리·브런치·Medium·Substack 등) | ✅ 대체로 | `/rss`·`/feed`를 `add_rss`로 등록 |
+| Instagram / X / Threads / LinkedIn | ❌ | 공식 RSS 없음 → `save_social_post(url)`로 **게시물 링크 수동 수집** |
+
+- `sources.youtube_channel_to_feed(url)` 채널→피드 변환, `auto_collect_kind(url)` 가능 종류 판정(`youtube`/`web`/`None`).
+- `sources.sync_expert_feeds()` — 유튜브인데 `feed_url` 미연결인 전문가를 일괄 RSS화(백필). **매주 월 09:15** 작업 스케줄러 `AI교육팀_전문가피드동기화`(`tools/expert_feed_sync.ps1`)가 호출 → 09:23 뉴스 브리핑 직전이라 그 회차 수집에 포함된다.
+- 앱 소스 탭의 전문가 카드는 상태 배지(✅ 자동수집 중 / 🔗 RSS 연결 가능 / ⚠️ 자동수집 불가)를 RSS 연결 전까지 표시한다.
 
 ### 최근 뉴스 & 주간 브리핑
 
@@ -215,7 +230,8 @@ Claude Code가 교육자 역할로 Canva MCP를 사용해 슬라이드를 생성
 | `agents/qa.py` | QA: 난이도·정확성·일관성 검토 |
 | `agents/curriculum.py` | 커리큘럼: 생성·관리, 슬라이드 데이터 빌드 |
 | `tools/reader.py` | inbox 파일 읽기, URL → 텍스트 추출, 유튜브 메타(`fetch_youtube_meta`) |
-| `tools/sources.py` | 입력 소스 커넥터: RSS 워치리스트·전문가 SNS(`fetch_social_post`)·웹검색 적재(`save_research`) |
+| `tools/sources.py` | 입력 소스 커넥터: RSS 워치리스트·전문가 SNS(`fetch_social_post`)·웹검색 적재(`save_research`)·유튜브 채널 RSS 변환(`youtube_channel_to_feed`/`sync_expert_feeds`) |
+| `tools/expert_feed_sync.ps1` | 유튜브 전문가 RSS 자동 연결 백필 래퍼 (작업 스케줄러 `AI교육팀_전문가피드동기화`, 매주 월 09:15) |
 | `tools/news.py` | 뉴스 스트림: 수집(`collect_news`)·열람(`recent_items`)·주간 브리핑(`build_digest_source`/`save_digest`) |
 | `tools/file_tools.py` | DB 로드/저장, 지식 파일 저장 |
 | `tools/curriculum_tools.py` | 커리큘럼 CRUD, 슬라이드 JSON 저장, 세션 참고자료(`add_session_reference`) |
