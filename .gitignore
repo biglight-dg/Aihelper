@@ -3,6 +3,7 @@
 .env.local
 *.key
 secrets/
+.streamlit/secrets.toml
 
 # .env.example 은 키 없는 견본이라 올려도 됨 (아래 한 줄이 예외 처리)
 !.env.example

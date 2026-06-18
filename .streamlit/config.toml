@@ -1,0 +1,21 @@
+# Streamlit 서버 설정
+# 외부 공개는 Cloudflare Tunnel만 통해 들어오게 하고, 직접 노출은 막는다.
+[server]
+address = "127.0.0.1"
+port = 8501
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+# Notion 스타일 테마 — 따뜻한 종이색 캔버스 + 단 하나의 파랑 액센트
+# 세부(폰트 로드·둥글기·그림자·버튼/탭/카드)는 app.py의 _inject_theme_css()가 담당.
+[theme]
+base = "light"
+primaryColor = "#0075de"             # 유일한 구조적 액센트 (CTA·링크·포커스)
+backgroundColor = "#f6f5f4"          # 따뜻한 종이색 캔버스 (canvas-soft)
+secondaryBackgroundColor = "#ffffff" # 카드·사이드바·위젯 표면 (흰색 figure/ground)
+textColor = "#1a1a1a"                # soft true-black (ink)
+linkColor = "#0075de"
+borderColor = "#e6e6e6"              # 헤어라인
+font = "Pretendard, sans-serif"

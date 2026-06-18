@@ -31,6 +31,237 @@ INBOX_DIR = Path("data/inbox")
 KNOWLEDGE_DIR = Path("data/knowledge")
 
 
+# ── 접근 인증: 공유 비밀번호 게이트 + 역할(role) ────────────────
+def _is_admin() -> bool:
+    """관리자(전체 권한)면 True. 손님(보기·입력만)이면 False."""
+    return st.session_state.get("role") == "admin"
+
+
+def _check_auth() -> None:
+    """비밀번호로 입장 + 역할 부여. 인증 전에는 본문 렌더를 막는다.
+
+    secrets.toml 에 admin_password / guest_password 를 둔다.
+    비밀번호가 설정돼 있지 않으면(로컬 단독 사용) 게이트 없이 관리자 통과.
+    """
+    if st.session_state.get("auth_ok"):
+        return
+
+    admin_pw = st.secrets.get("admin_password", "")
+    guest_pw = st.secrets.get("guest_password", "")
+
+    # 비번이 하나도 설정되지 않은 환경(로컬 개발)은 게이트를 건너뛴다.
+    if not admin_pw and not guest_pw:
+        st.session_state["auth_ok"] = True
+        st.session_state["role"] = "admin"
+        return
+
+    def _grant(role: str) -> None:
+        st.session_state["auth_ok"] = True
+        st.session_state["role"] = role
+
+    # "비밀번호 저장하기"로 저장해 둔 값이 URL(?k=)에 있으면 자동 입장한다.
+    # (지인 공유용 간이 기능 — 비번이 주소에 남으므로 강한 보안용은 아님)
+    saved = st.query_params.get("k", "")
+    if saved:
+        if admin_pw and saved == admin_pw:
+            _grant("admin")
+            return
+        if guest_pw and saved == guest_pw:
+            _grant("guest")
+            return
+
+    st.title("🔒 나만의 지식 베이스")
+    st.caption("공유받은 비밀번호를 입력하면 입장합니다.")
+    pw = st.text_input("비밀번호", type="password")
+    remember = st.checkbox("비밀번호 저장하기 (다음에 자동 입장)", value=True)
+    if st.button("입장"):
+        role = None
+        if admin_pw and pw == admin_pw:
+            role = "admin"
+        elif guest_pw and pw == guest_pw:
+            role = "guest"
+
+        if role:
+            _grant(role)
+            if remember:
+                st.query_params["k"] = pw   # 주소에 저장 → 다음 방문 시 자동 입장
+            else:
+                st.query_params.pop("k", None)
+            st.rerun()
+        else:
+            st.error("비밀번호가 올바르지 않습니다.")
+    st.stop()  # 인증 전에는 아래 본문이 실행되지 않는다.
+
+
+_check_auth()
+
+
+# ── Notion 스타일 전역 테마 CSS ────────────────────────────────
+# config.toml [theme]가 핵심 팔레트를 잡고, 여기서 폰트·둥글기·그림자·
+# 버튼/탭/카드 등 세부를 입힌다. 발표 슬라이드 덱(_slide_inner_html /
+# _DECK_TEMPLATE)은 흑백 = PPTX 일치를 위해 건드리지 않는다.
+_THEME_CSS = """
+<style>
+/* Pretendard — 한글 완방 + Inter 메트릭 (이 프로젝트 PPTX와 동일 계열) */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/dist/web/variable/pretendardvariable-dynamic-subset.css");
+
+:root {
+  --ink: #1a1a1a;          /* soft true-black */
+  --ink-muted: #615d59;    /* 보조 텍스트 */
+  --ink-faint: #a39e98;    /* 캡션·플레이스홀더 */
+  --primary: #0075de;      /* 유일한 구조적 액센트 */
+  --primary-active: #005bab;
+  --hairline: #e6e6e6;
+  --surface: #ffffff;
+  /* Level-1 다층 미세 그림자 (Notion Elevation) */
+  --shadow-soft: 0 0.175px 1.041px rgba(0,0,0,0.01),
+                 0 0.8px 2.925px rgba(0,0,0,0.02),
+                 0 2.025px 7.847px rgba(0,0,0,0.027),
+                 0 4px 18px rgba(0,0,0,0.04);
+}
+
+.stApp, .stApp button, .stApp input, .stApp textarea, .stApp select,
+.stMarkdown, [data-testid="stSidebar"] {
+  font-family: "Pretendard Variable", Pretendard, -apple-system,
+               system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+/* Material 아이콘은 폰트 오버라이드 제외 — 안 하면 아이콘이 "upload" 같은
+   리거처 텍스트로 깨진다. 아이콘 전용 폰트를 강제로 되돌린다. */
+[data-testid="stIconMaterial"], .material-icons, .material-symbols-rounded,
+[class*="material-symbols"], [class*="material-icons"] {
+  font-family: "Material Symbols Rounded", "Material Icons" !important;
+}
+
+/* 헤딩: 굵고 타이트 (음수 트래킹) */
+h1, h2, h3 { color: var(--ink); font-weight: 700; }
+h1 { font-weight: 800; letter-spacing: -1px; }
+h2 { letter-spacing: -0.625px; }
+h3 { letter-spacing: -0.25px; }
+
+/* 보조 텍스트 (캡션) */
+[data-testid="stCaptionContainer"], .stCaption { color: var(--ink-faint); }
+
+/* 링크 — 단 하나의 파랑 */
+a, a:visited { color: var(--primary); }
+
+/* 버튼 기본/secondary = 유틸리티: 흰 표면 · 헤어라인 · 8px */
+.stButton > button,
+[data-testid="stBaseButton-secondary"] {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  font-weight: 500;
+}
+.stButton > button:hover,
+[data-testid="stBaseButton-secondary"]:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+/* primary 버튼 = 파랑. 라운드는 유틸리티 버튼과 8px로 통일(활성/비활성 일관) */
+.stButton > button[kind="primary"],
+[data-testid="stBaseButton-primary"] {
+  background: var(--primary);
+  color: #ffffff;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  font-weight: 500;
+}
+.stButton > button[kind="primary"]:hover,
+[data-testid="stBaseButton-primary"]:hover {
+  background: var(--primary-active);
+  border-color: var(--primary-active);
+  color: #ffffff;
+}
+.stButton > button[kind="primary"]:active,
+[data-testid="stBaseButton-primary"]:active {
+  background: var(--primary-active);
+  transform: scale(0.98);
+}
+
+/* 카드: st.container(border=True) — 12px · 헤어라인 · 은은한 그림자 */
+[data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) {
+  border-radius: 12px;
+}
+div[data-testid="stVerticalBlockBorderWrapper"][style*="border"] {
+  background: var(--surface);
+  border: 1px solid var(--hairline) !important;
+  border-radius: 12px;
+  box-shadow: var(--shadow-soft);
+}
+
+/* 입력: 4px (pill 금지) · 헤어라인 */
+.stTextInput input, .stTextArea textarea, .stNumberInput input,
+[data-baseweb="input"], [data-baseweb="textarea"] {
+  border-radius: 4px !important;
+  border-color: var(--hairline) !important;
+}
+[data-baseweb="select"] > div { border-radius: 4px !important; }
+
+/* 탭: 활성 탭 라벨 + 얇은 밑줄 하이라이트만 파랑 (패널은 절대 칠하지 않음) */
+[data-baseweb="tab"][aria-selected="true"] { color: var(--primary) !important; }
+.stTabs [data-baseweb="tab-highlight"] { background-color: var(--primary) !important; }
+</style>
+"""
+
+# 다크 모드: config.toml은 라이트 1종만 지정하므로, 토글이 켜지면
+# CSS 변수와 표면 색을 어둡게 덮어쓴다(앱 한정 — 슬라이드 덱 iframe은 불변).
+_DARK_CSS = """
+<style>
+:root {
+  --ink: #e9e9e7;
+  --ink-muted: #9b9b9b;
+  --ink-faint: #6f6f6f;
+  --hairline: #373737;
+  --surface: #2a2a2a;
+}
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+  background-color: #191919 !important;
+}
+[data-testid="stSidebar"] { background-color: #202020 !important; }
+.stApp, .stApp p, .stApp li, .stApp label, .stApp span,
+h1, h2, h3, h4, [data-testid="stMarkdownContainer"] { color: #e9e9e7; }
+[data-testid="stCaptionContainer"] { color: #9b9b9b !important; }
+/* 카드 */
+div[data-testid="stVerticalBlockBorderWrapper"][style*="border"] {
+  background: #2a2a2a !important;
+  border-color: #373737 !important;
+}
+/* 입력 */
+.stTextInput input, .stTextArea textarea, .stNumberInput input,
+[data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="input"] input,
+[data-baseweb="select"] > div {
+  background-color: #2a2a2a !important;
+  color: #e9e9e7 !important;
+  border-color: #373737 !important;
+}
+/* 유틸리티 버튼 */
+.stButton > button, [data-testid="stBaseButton-secondary"] {
+  background: #2a2a2a !important;
+  color: #e9e9e7 !important;
+  border-color: #373737 !important;
+}
+/* 코드 블록 */
+code, .stCode, pre { background-color: #2a2a2a !important; color: #e9e9e7 !important; }
+/* 비활성 탭 / 세그먼트 라벨 — 어둠 위 어둠 방지 */
+.stTabs [data-baseweb="tab"] { color: #c9c9c7 !important; }
+.stTabs [data-baseweb="tab"][aria-selected="true"] { color: var(--primary) !important; }
+[data-testid="stButtonGroup"] button { color: #e9e9e7 !important; }
+/* 파일 업로더 드롭존 */
+[data-testid="stFileUploaderDropzone"],
+[data-testid="stFileUploader"] section {
+  background-color: #2a2a2a !important;
+}
+</style>
+"""
+
+# 다크 모드 토글 — 사이드바 최상단에 배치(코드 위치와 무관하게 사이드바로 렌더)
+_dark = st.sidebar.toggle("🌙 다크 모드", key="dark_mode")
+st.markdown(_THEME_CSS, unsafe_allow_html=True)
+if _dark:
+    st.markdown(_DARK_CSS, unsafe_allow_html=True)
+
+
 # 16:9 래퍼: aspect-ratio로 비율 고정, 내부 절대 위치
 WRAP_OPEN = (
     '<div style="width:100%;aspect-ratio:16/9;position:relative;'
@@ -401,9 +632,9 @@ def _render_digest(digest: dict) -> None:
 
     # 히어로
     st.markdown(
-        '<div style="background:#111;color:#fff;border-radius:12px;padding:1.4rem 1.6rem;margin-bottom:1.2rem;">'
+        '<div style="background:#213183;color:#fff;border-radius:12px;padding:1.4rem 1.6rem;margin-bottom:1.2rem;">'
         f'<div style="font-size:1.3rem;font-weight:800;margin-bottom:0.5rem;">📋 이번 주 AI 한 편으로</div>'
-        f'<div style="font-size:0.85rem;color:#aaa;margin-bottom:0.7rem;">{digest.get("period","")}</div>'
+        f'<div style="font-size:0.85rem;color:rgba(255,255,255,0.6);margin-bottom:0.7rem;">{digest.get("period","")}</div>'
         f'<div style="font-size:1.02rem;line-height:1.6;color:#eee;">{digest.get("intro","")}</div>'
         '</div>',
         unsafe_allow_html=True,
@@ -421,10 +652,10 @@ def _render_digest(digest: dict) -> None:
                 st.markdown(d["body"])
             if d.get("question"):
                 st.markdown(
-                    '<div style="border-left:4px solid #888;background:#1c1c1c;'
+                    '<div style="border-left:4px solid #0075de;background:#f6f5f4;'
                     'padding:0.7rem 1rem;border-radius:6px;margin:0.6rem 0;">'
-                    '<b style="color:#ffffff;">❔ 생각해볼 질문</b><br>'
-                    f'<span style="color:#eaeaea;">{d["question"]}</span></div>',
+                    '<b style="color:#0075de;">❔ 생각해볼 질문</b><br>'
+                    f'<span style="color:#1a1a1a;">{d["question"]}</span></div>',
                     unsafe_allow_html=True,
                 )
             srcs = d.get("sources", [])
@@ -476,35 +707,46 @@ def _sort_items(items, mode, date_field, title_field="title"):
     return sorted(items, key=lambda x: x.get(date_field) or "", reverse=(mode == "최신순"))
 
 
-# ── 전역 헤더 ──────────────────────────────────────────────────
-st.title("📚 나만의 지식 베이스")
-st.caption("문서를 모아두면 Claude Code(팀장)가 교육 자료로 정리해 줍니다.")
+# ── 전역 헤더 + 상시 사이드바 (공부 모드가 아닐 때만 하단에서 호출) ──
+def render_global_chrome():
+    st.title("📚 나만의 지식 베이스")
+    st.caption("문서를 모아두면 Claude Code(팀장)가 교육 자료로 정리해 줍니다.")
 
-# ── 사이드바: 상시 안내 ────────────────────────────────────────
-with st.sidebar:
-    st.markdown("### 🧭 사용 흐름")
-    st.markdown(
-        "**①** 문서·메모 입력  \n"
-        "**②** Claude Code에 `\"정리해줘\"`  \n"
-        "**③** 지식 베이스에서 확인"
-    )
-    st.divider()
-    st.markdown("### 💬 자주 쓰는 명령어")
-    st.code(
-        "inbox 정리해줘\n"
-        "PPT 만들어줘\n"
-        "[제목] 커리큘럼 만들어줘\n"
-        "방금 만든 문서 검토해줘\n"
-        "ChatGPT 관련 자료 찾아줘",
-        language="text",
-    )
-    st.divider()
-    _sb_inbox = _inbox_files()
-    _sb_db_items = load_db().get("items", [])
-    _sb_pending = sum(1 for f in _sb_inbox if not _is_processed(f, _sb_db_items))
-    sb_c1, sb_c2 = st.columns(2)
-    sb_c1.metric("inbox 대기", _sb_pending)
-    sb_c2.metric("지식 문서", len(_sb_db_items))
+    with st.sidebar:
+        st.markdown("### 🧭 사용 흐름")
+        st.markdown(
+            "**①** 문서·메모 입력  \n"
+            "**②** Claude Code에 `\"정리해줘\"`  \n"
+            "**③** 지식 베이스에서 확인"
+        )
+        st.divider()
+        st.markdown("### 💬 자주 쓰는 명령어")
+        st.code(
+            "inbox 정리해줘\n"
+            "PPT 만들어줘\n"
+            "[제목] 커리큘럼 만들어줘\n"
+            "방금 만든 문서 검토해줘\n"
+            "ChatGPT 관련 자료 찾아줘",
+            language="text",
+        )
+        st.divider()
+        _sb_inbox = _inbox_files()
+        _sb_db_items = load_db().get("items", [])
+        _sb_pending = sum(1 for f in _sb_inbox if not _is_processed(f, _sb_db_items))
+        sb_c1, sb_c2 = st.columns(2)
+        sb_c1.metric("inbox 대기", _sb_pending)
+        sb_c2.metric("지식 문서", len(_sb_db_items))
+
+        # 현재 접속 역할 표시 + 로그아웃 (비번 게이트가 켜진 경우에만 의미 있음)
+        if st.secrets.get("admin_password", "") or st.secrets.get("guest_password", ""):
+            st.divider()
+            _role_label = "관리자 (전체 권한)" if _is_admin() else "손님 (보기·입력)"
+            st.caption(f"👤 {_role_label}")
+            if st.button("로그아웃", key="logout_btn"):
+                for _k in ("auth_ok", "role"):
+                    st.session_state.pop(_k, None)
+                st.query_params.pop("k", None)   # 저장해 둔 자동 입장도 해제
+                st.rerun()
 
 
 # ── 탭 본문: 각 탭을 렌더 함수로 정의 (맨 아래 그룹 네비에서 호출) ──
@@ -587,23 +829,24 @@ def render_inbox():
                     content = f.read_text(encoding="utf-8", errors="replace")
                     st.text(content[:500] + ("..." if len(content) > 500 else ""))
 
-                # 삭제: 2단계 확인
-                confirm_key = f"confirm_del_{f.name}"
-                if st.session_state.get(confirm_key):
-                    st.warning("⚠️ 정말 삭제할까요? 되돌릴 수 없습니다.")
-                    c_yes, c_no = st.columns(2)
-                    if c_yes.button("삭제 확정", key=f"delyes_{f.name}", type="primary"):
-                        f.unlink()
-                        st.session_state.pop(confirm_key, None)
-                        st.session_state.pop(f"pdfprev_{f.name}", None)
-                        st.rerun()
-                    if c_no.button("취소", key=f"delno_{f.name}"):
-                        st.session_state.pop(confirm_key, None)
-                        st.rerun()
-                else:
-                    if st.button("삭제", key=f"del_{f.name}"):
-                        st.session_state[confirm_key] = True
-                        st.rerun()
+                # 삭제: 2단계 확인 (관리자 전용)
+                if _is_admin():
+                    confirm_key = f"confirm_del_{f.name}"
+                    if st.session_state.get(confirm_key):
+                        st.warning("⚠️ 정말 삭제할까요? 되돌릴 수 없습니다.")
+                        c_yes, c_no = st.columns(2)
+                        if c_yes.button("삭제 확정", key=f"delyes_{f.name}", type="primary"):
+                            f.unlink()
+                            st.session_state.pop(confirm_key, None)
+                            st.session_state.pop(f"pdfprev_{f.name}", None)
+                            st.rerun()
+                        if c_no.button("취소", key=f"delno_{f.name}"):
+                            st.session_state.pop(confirm_key, None)
+                            st.rerun()
+                    else:
+                        if st.button("삭제", key=f"del_{f.name}"):
+                            st.session_state[confirm_key] = True
+                            st.rerun()
     else:
         st.info("inbox가 비어 있습니다. 파일을 올리거나 URL을 입력해 보세요.")
 
@@ -639,7 +882,7 @@ def render_sources():
                 c1, c2 = st.columns([5, 1])
                 cat = f" · {r['category']}" if r.get("category") else ""
                 c1.markdown(f"**{r['title']}**{cat}  \n<small>{r['url']}</small>", unsafe_allow_html=True)
-                if c2.button("삭제", key=f"delrss_{r['url']}"):
+                if _is_admin() and c2.button("삭제", key=f"delrss_{r['url']}"):
                     remove_rss(r["url"])
                     st.rerun()
         else:
@@ -692,7 +935,7 @@ def render_sources():
                     if c2.button("RSS 연결", key=f"linkrss_{e['url']}"):
                         sync_expert_feeds()
                         st.rerun()
-                if c2.button("삭제", key=f"delex_{e['url']}"):
+                if _is_admin() and c2.button("삭제", key=f"delex_{e['url']}"):
                     remove_expert(e["url"])
                     st.rerun()
         else:
@@ -909,6 +1152,123 @@ def render_kb():
                 else:
                     st.warning("파일을 찾을 수 없습니다.")
 
+# ── 픽셀 스타일 썸네일 (실제 이미지가 없으므로 결정적 생성) ────────
+# Notion의 스티커 팔레트는 '장식용'으로만 허용되므로 여기서만 컬러를 쓴다.
+# seed가 같으면 항상 같은 그림 → 커리큘럼마다 고유하고 일관된 픽셀 아이콘.
+_THUMB_PAIRS = [
+    ("#eef4ff", "#62aef0"),  # sky
+    ("#f3ecfb", "#a06be0"),  # purple
+    ("#ffeaf6", "#ff64c8"),  # pink
+    ("#fff0e6", "#dd5b00"),  # orange
+    ("#e8f6f5", "#2a9d99"),  # teal
+    ("#e9f7ed", "#1aae39"),  # green
+]
+
+
+# 7×7 픽셀 아이콘 비트맵 (# = 채움). 제목 키워드로 모양을 고른다.
+_PIX_ICONS = {
+    "camera": [".......", ".##....", "#######", "#.....#", "#.###.#", "#.###.#", "#######"],
+    "bolt":   ["....##.", "...##..", "..##...", ".#####.", "...##..", "..##...", ".##...."],
+    "shield": [".#####.", "#######", "#######", "#######", ".#####.", "..###..", "...#..."],
+    "code":   ["..#.#..", ".#...#.", "#.....#", ".......", "#.....#", ".#...#.", "..#.#.."],
+    "chat":   ["#######", "#.....#", "#.#.#.#", "#.....#", "#####.#", "...##..", "..#...."],
+    "robot":  ["...#...", ".#####.", "#.#.#.#", "#######", "#.###.#", "#######", ".#...#."],
+    "book":   ["##...##", "#.#.#.#", "#.#.#.#", "#.#.#.#", "#.#.#.#", "#.#.#.#", "##...##"],
+    "spark":  ["...#...", "..###..", ".#####.", "#######", ".#####.", "..###..", "...#..."],
+}
+
+# (키워드들, 아이콘) — 위에서부터 먼저 매칭. 더 구체적인 주제를 앞에 둔다.
+_ICON_RULES = [
+    (("이미지", "영상", "사진", "그림", "디자인", "미드저니", "미디어", "동영상"), "camera"),
+    (("안전", "보안", "저작권", "개인정보", "환각", "윤리"), "shield"),
+    (("에이전트", "agent", "mcp", "노코드", "봇", "로봇"), "robot"),
+    (("자동화", "워크플로", "automation", "실전", "자동"), "bolt"),
+    (("개발", "코드", "코딩", "배경", "언어", "git", "html", "css", "터미널", "api", "서버", "마크다운"), "code"),
+    (("프롬프트", "대화", "gpt", "claude", "멋지게", "활용", "사용"), "chat"),
+    (("ai", "트렌드", "지형도", "미래", "인공지능", "기초"), "spark"),
+]
+
+
+def _icon_key_for(title: str) -> str:
+    """제목에서 키워드를 찾아 어울리는 픽셀 아이콘 키를 고른다(없으면 책)."""
+    t = (title or "").lower()
+    for kws, key in _ICON_RULES:
+        if any(k in t for k in kws):
+            return key
+    return "book"
+
+
+def _pixel_thumb(seed: str, title: str, height: int = 104) -> str:
+    """제목에 맞는 7×7 픽셀 아이콘 썸네일 HTML. 색은 seed로 결정(일관·고유)."""
+    import random as _random
+    bg, fg = _THUMB_PAIRS[_random.Random(seed or "x").randrange(len(_THUMB_PAIRS))]
+    grid = _PIX_ICONS[_icon_key_for(title)]
+    cells = "".join(
+        f'<div style="background:{fg if ch == "#" else "transparent"};border-radius:2px;"></div>'
+        for row in grid for ch in row
+    )
+    return (
+        f'<div style="height:{height}px;background:{bg};border-radius:8px;'
+        f'display:flex;align-items:center;justify-content:center;margin-bottom:0.7rem;">'
+        f'<div style="display:grid;grid-template-columns:repeat(7,10px);'
+        f'grid-template-rows:repeat(7,10px);gap:2px;">{cells}</div></div>'
+    )
+
+
+def _render_textbook(curriculum, sessions, selected_week):
+    """교재 본문(전체 개요 또는 특정 강)을 렌더한다. 독립 스크롤 컨테이너 안에서 호출."""
+    if selected_week == 0:
+        # 전체: 커리큘럼 개요 + 각 세션 요약
+        st.markdown(f"# {curriculum['title']}")
+        st.markdown(
+            f"> **수강 대상**: {curriculum.get('target_audience','입문자')}  |  "
+            f"**전체 {len(sessions)}강**"
+        )
+        st.markdown(curriculum.get("description", ""))
+        st.divider()
+        st.markdown("## 커리큘럼 구성")
+        for ses in sessions:
+            with st.expander(f"**{ses['week']}강: {ses['title']}** — {ses.get('duration','60분')}"):
+                if ses.get("objectives"):
+                    st.markdown("**학습 목표**")
+                    for obj in ses["objectives"]:
+                        st.markdown(f"- {obj}")
+                if ses.get("activities"):
+                    st.markdown("**실습 활동**")
+                    for act in ses["activities"]:
+                        st.markdown(f"- {act}")
+                refs = ses.get("knowledge_refs", [])
+                if refs:
+                    st.caption("지식 문서: " + ", ".join(Path(r).name for r in refs))
+                ext_refs = ses.get("references", [])
+                if ext_refs:
+                    st.markdown("**참고 자료 (영상·링크)**")
+                    for ref in ext_refs:
+                        icon = {"youtube": "▶", "tool": "🧰"}.get(ref.get("type"), "🔗")
+                        title = ref.get("title") or ref.get("url", "링크")
+                        url = ref.get("url", "")
+                        ch = f" · {ref.get('channel')}" if ref.get("channel") else ""
+                        st.markdown(f"- {icon} [{title}]({url}){ch}")
+                cross = ses.get("cross_refs", [])
+                if cross:
+                    st.markdown("**🔗 연결 통로**")
+                    for cr in cross:
+                        where = (f"{cr.get('title','')} {cr.get('week')}강"
+                                 if cr.get("week") else cr.get("title", ""))
+                        note = (cr.get("note") or "").strip()
+                        st.markdown(
+                            f"- {where} · {cr.get('relation','연결')}"
+                            + (f" — {note}" if note else "")
+                        )
+    else:
+        # 특정 강 교재
+        ses = next((s for s in sessions if s["week"] == selected_week), None)
+        if ses:
+            st.markdown(build_session_doc(curriculum, ses))
+        else:
+            st.warning("해당 강 세션을 찾을 수 없습니다.")
+
+
 # ── 탭 4: 커리큘럼 ─────────────────────────────────────────────
 def render_curriculum():
     # ── session_state 초기화 ────────────────────────────────────
@@ -946,11 +1306,14 @@ def render_curriculum():
                 return (0, o) if isinstance(o, int) else (1, 0)
 
             main_items = sorted(
-                [it for it in loaded if it[1].get("track", "main") != "elective"],
+                [it for it in loaded
+                 if it[1].get("track", "main") not in ("elective", "special")],
                 key=_order_key,
             )
             elective_items = [it for it in loaded
                               if it[1].get("track") == "elective"]
+            special_items = [it for it in loaded
+                             if it[1].get("track") == "special"]
 
             def _render_cur_card(entry, cur_data):
                 n_sessions = len(cur_data.get("sessions", []))
@@ -968,27 +1331,47 @@ def render_curriculum():
                 except Exception:
                     has_pptx = False
 
+                if cur_data.get("track") == "special":
+                    badge = "특별 강의"
+                elif cur_data.get("track") == "elective":
+                    badge = "선택 트랙"
+                elif isinstance(order, int):
+                    badge = f"{order}단계"
+                else:
+                    badge = ""
+                if level:
+                    badge = f"{badge} · {level}" if badge else level
+
+                def _esc(s: str) -> str:
+                    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+                badge_html = (
+                    f'<span style="display:inline-block;background:#f6f5f4;color:#0075de;'
+                    f'font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:9999px;'
+                    f'margin-bottom:0.4rem;">🧭 {_esc(badge)}</span>'
+                    if badge else ""
+                )
+                pptx_html = (
+                    '<span style="font-size:0.72rem;color:#615d59;">📎 PPTX</span>'
+                    if has_pptx else ""
+                )
+                # 고정 높이 본문: 썸네일 + 배지 + 제목(2줄 클램프) + 메타 + 설명(2줄 클램프)
+                body = (
+                    _pixel_thumb(entry.get("id") or entry["title"], entry["title"])
+                    + '<div style="height:142px;display:flex;flex-direction:column;overflow:hidden;">'
+                    + badge_html
+                    + f'<div style="font-size:1.05rem;font-weight:700;color:var(--ink,#1a1a1a);'
+                      f'line-height:1.3;margin-bottom:0.25rem;display:-webkit-box;-webkit-line-clamp:2;'
+                      f'-webkit-box-orient:vertical;overflow:hidden;">{_esc(entry["title"])}</div>'
+                    + f'<div style="font-size:0.78rem;color:#615d59;margin-bottom:0.35rem;">'
+                      f'{_esc(audience)} · 총 {n_sessions}강 {pptx_html}</div>'
+                    + (f'<div style="font-size:0.82rem;color:#615d59;line-height:1.45;flex:1;'
+                       f'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;'
+                       f'overflow:hidden;">{_esc(desc)}</div>' if desc else "")
+                    + '</div>'
+                )
                 with st.container(border=True):
-                    if cur_data.get("track") == "elective":
-                        badge = "선택 트랙"
-                    elif isinstance(order, int):
-                        badge = f"{order}단계"
-                    else:
-                        badge = ""
-                    if level:
-                        badge = f"{badge} · {level}" if badge else level
-                    if badge:
-                        st.caption(f"🧭 {badge}")
-                    st.markdown(f"### {entry['title']}")
-                    st.caption(f"{audience} · {n_sessions}주 과정")
-                    if desc:
-                        st.write(desc[:100] + ("…" if len(desc) > 100 else ""))
-                    if prereq:
-                        names = ", ".join(id_to_title.get(p, p) for p in prereq)
-                        st.caption(f"📋 선수: {names}")
-                    st.caption(f"마지막 업데이트: {updated}")
-                    if has_pptx:
-                        st.caption("📎 PPTX 다운로드 가능")
+                    st.markdown(body, unsafe_allow_html=True)
                     if st.button("열기 →", key=f"open_{entry['id']}",
                                  use_container_width=True, type="primary"):
                         st.session_state["cur_selected_id"] = entry["id"]
@@ -996,7 +1379,8 @@ def render_curriculum():
                         st.rerun()
 
             def _render_grid(items):
-                cols = st.columns(min(3, len(items)))
+                # 항상 3열 고정 → 항목이 적은 선택 트랙도 메인 경로와 같은 카드 폭
+                cols = st.columns(3)
                 for i, (entry, cur_data) in enumerate(items):
                     with cols[i % 3]:
                         _render_cur_card(entry, cur_data)
@@ -1005,6 +1389,12 @@ def render_curriculum():
                 st.markdown("#### 🎯 메인 학습 경로")
                 st.caption("아래 순서대로 수강하는 것을 권장합니다.")
                 _render_grid(main_items)
+
+            if special_items:
+                st.divider()
+                st.markdown("#### 🚀 특별 강의")
+                st.caption("실무 주제별 심화 특강입니다. 관심 주제만 골라 단독으로 들을 수 있습니다.")
+                _render_grid(special_items)
 
             if elective_items:
                 st.divider()
@@ -1016,11 +1406,11 @@ def render_curriculum():
         with st.expander("💬 Claude Code 명령어 가이드"):
             st.code("""\
 [제목] 커리큘럼 만들어줘      → 새 커리큘럼 생성
-[N]주차 세션 추가: [제목]     → 세션 추가
-[N]주차에 [파일명] 연결해줘   → 지식 문서 연결
-[N]주차 목표 바꿔줘: [목표]   → 학습 목표 수정
-[N]주차 활동 추가: [활동]     → 활동 추가
-[N]주차 삭제해줘              → 세션 삭제
+[N]강 세션 추가: [제목]       → 세션 추가
+[N]강에 [파일명] 연결해줘     → 지식 문서 연결
+[N]강 목표 바꿔줘: [목표]     → 학습 목표 수정
+[N]강 활동 추가: [활동]       → 활동 추가
+[N]강 삭제해줘                → 세션 삭제
 커리큘럼 슬라이드 업데이트해줘 → 슬라이드 JSON + PPTX 재생성
 커리큘럼 목록 보여줘           → 목록 출력
 또는 /커리큘럼 슬래시 커맨드 사용""", language="text")
@@ -1049,84 +1439,42 @@ def render_curriculum():
         sessions = sorted(curriculum.get("sessions", []), key=lambda s: s["week"])
         selected_week = st.session_state["cur_selected_week"]
 
-        # ── 상단 헤더 ────────────────────────────────────────────
-        hdr_l, hdr_r = st.columns([3, 1])
-        with hdr_l:
-            if st.button("← 커리큘럼 목록", key="back_to_dashboard"):
+        # ── 공부 모드: 헤더/네비/메타는 전부 사이드바로, 본문은 교재|슬라이드만 ──
+        order = curriculum.get("order")
+        level = curriculum.get("level", "")
+        if curriculum.get("track") == "special":
+            pos = "특별 강의"
+        elif curriculum.get("track") == "elective":
+            pos = "선택 트랙"
+        elif isinstance(order, int):
+            pos = f"메인 경로 {order}단계"
+        else:
+            pos = ""
+        if level:
+            pos = f"{pos} · {level}" if pos else level
+        _id_title = {c["id"]: c["title"] for c in curricula}
+
+        with st.sidebar:
+            st.divider()
+            if st.button("← 커리큘럼 목록", key="back_to_dashboard",
+                         use_container_width=True):
                 st.session_state["cur_selected_id"] = None
                 st.rerun()
-            st.markdown(f"## {curriculum['title']}")
-            order = curriculum.get("order")
-            level = curriculum.get("level", "")
-            if curriculum.get("track") == "elective":
-                pos = "선택 트랙"
-            elif isinstance(order, int):
-                pos = f"메인 경로 {order}단계"
-            else:
-                pos = ""
-            if level:
-                pos = f"{pos} · {level}" if pos else level
+            st.markdown(f"### 📚 {curriculum['title']}")
             st.caption(
                 (f"🧭 {pos} · " if pos else "")
                 + f"{curriculum.get('target_audience','입문자')} · "
-                f"{len(sessions)}주 과정 · "
-                f"업데이트: {curriculum.get('updated_at','')[:10]}"
+                f"총 {len(sessions)}강"
             )
-            _id_title = {c["id"]: c["title"] for c in curricula}
             _prereq = curriculum.get("prerequisites", [])
             if _prereq:
-                st.caption("📋 선수 과정: "
-                           + ", ".join(_id_title.get(p, p) for p in _prereq))
-            _next = curriculum.get("next", [])
-            if _next:
-                st.caption("➡️ 다음 권장 과정")
-                ncols = st.columns(min(3, len(_next)))
-                for ni, nid in enumerate(_next):
-                    if nid not in _id_title:
-                        continue
-                    with ncols[ni % len(ncols)]:
-                        if st.button(f"{_id_title[nid]} →", key=f"next_{nid}",
-                                     use_container_width=True):
-                            st.session_state["cur_selected_id"] = nid
-                            st.session_state["cur_selected_week"] = 0
-                            st.rerun()
-        with hdr_r:
-            pptx_path = curriculum.get("generated", {}).get("pptx_path")
-            if pptx_path and Path(pptx_path).exists():
-                with open(pptx_path, "rb") as f:
-                    st.download_button(
-                        "⬇️ PPTX 다운로드",
-                        data=f,
-                        file_name=Path(pptx_path).name,
-                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        key="dl_pptx",
-                        use_container_width=True,
-                    )
+                st.caption("📋 선수: " + ", ".join(_id_title.get(p, p) for p in _prereq))
 
-        st.divider()
-
-        # ── 본문: 왼쪽 네비 + 오른쪽 콘텐츠 ─────────────────────
-        col_nav, col_content = st.columns([1, 3])
-
-        # ── 왼쪽: 세션 네비게이션 버튼 ───────────────────────────
-        with col_nav:
-            st.markdown("**주차 선택**")
-            # 전체 보기 버튼
-            if st.button(
-                "📋 전체 보기",
-                key="ses_all",
-                use_container_width=True,
-                type="primary" if selected_week == 0 else "secondary",
-            ):
-                st.session_state["cur_selected_week"] = 0
-                st.rerun()
-
-            # 세션별 버튼
+            st.markdown("**강 선택**")
             for ses in sessions:
-                btn_label = f"{ses['week']}주차\n{ses['title']}"
                 is_active = selected_week == ses["week"]
                 if st.button(
-                    btn_label,
+                    f"{ses['week']}강 · {ses['title']}",
                     key=f"ses_w{ses['week']}_{selected_entry['id']}",
                     use_container_width=True,
                     type="primary" if is_active else "secondary",
@@ -1136,89 +1484,82 @@ def render_curriculum():
                     st.session_state[f"slide_idx_{selected_entry['id']}_{ses['week']}"] = 0
                     st.rerun()
 
-        # ── 오른쪽: 교재 / 슬라이드 탭 ──────────────────────────
-        with col_content:
-            tab_doc, tab_slides = st.tabs(["📖 교재", "🖼 슬라이드"])
+            # 전체 보기(교재·슬라이드 전체 읽기) — 강 목록 맨 아래
+            st.divider()
+            if st.button(
+                "📖 전체 보기 (교재·슬라이드 전체)",
+                key="ses_all",
+                use_container_width=True,
+                type="primary" if selected_week == 0 else "secondary",
+            ):
+                st.session_state["cur_selected_week"] = 0
+                st.rerun()
 
-            # ── 교재 탭 ───────────────────────────────────────────
-            with tab_doc:
-                if selected_week == 0:
-                    # 전체: 커리큘럼 개요 + 각 세션 요약
-                    st.markdown(f"# {curriculum['title']}")
-                    st.markdown(
-                        f"> **수강 대상**: {curriculum.get('target_audience','입문자')}  |  "
-                        f"**전체 {len(sessions)}주 과정**"
+            _next = [n for n in curriculum.get("next", []) if n in _id_title]
+            if _next:
+                st.divider()
+                st.caption("➡️ 다음 권장 과정")
+                for nid in _next:
+                    if st.button(f"{_id_title[nid]} →", key=f"next_{nid}",
+                                 use_container_width=True):
+                        st.session_state["cur_selected_id"] = nid
+                        st.session_state["cur_selected_week"] = 0
+                        st.rerun()
+
+        all_slides = load_slides(curriculum)
+        pptx_path = curriculum.get("generated", {}).get("pptx_path")
+
+        def _pptx_download(key: str):
+            if pptx_path and Path(pptx_path).exists():
+                with open(pptx_path, "rb") as f:
+                    st.download_button(
+                        "⬇️ PPTX 다운로드", data=f,
+                        file_name=Path(pptx_path).name,
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        key=key, use_container_width=True,
                     )
-                    st.markdown(curriculum.get("description", ""))
-                    st.divider()
-                    st.markdown("## 커리큘럼 구성")
-                    for ses in sessions:
-                        with st.expander(f"**{ses['week']}주차: {ses['title']}** — {ses.get('duration','60분')}"):
-                            if ses.get("objectives"):
-                                st.markdown("**학습 목표**")
-                                for obj in ses["objectives"]:
-                                    st.markdown(f"- {obj}")
-                            if ses.get("activities"):
-                                st.markdown("**실습 활동**")
-                                for act in ses["activities"]:
-                                    st.markdown(f"- {act}")
-                            refs = ses.get("knowledge_refs", [])
-                            if refs:
-                                st.caption("지식 문서: " + ", ".join(Path(r).name for r in refs))
-                            ext_refs = ses.get("references", [])
-                            if ext_refs:
-                                st.markdown("**참고 자료 (영상·링크)**")
-                                for ref in ext_refs:
-                                    icon = {"youtube": "▶", "tool": "🧰"}.get(ref.get("type"), "🔗")
-                                    title = ref.get("title") or ref.get("url", "링크")
-                                    url = ref.get("url", "")
-                                    ch = f" · {ref.get('channel')}" if ref.get("channel") else ""
-                                    st.markdown(f"- {icon} [{title}]({url}){ch}")
-                            cross = ses.get("cross_refs", [])
-                            if cross:
-                                st.markdown("**🔗 연결 통로**")
-                                for cr in cross:
-                                    where = (f"{cr.get('title','')} {cr.get('week')}주차"
-                                             if cr.get("week") else cr.get("title", ""))
-                                    note = (cr.get("note") or "").strip()
-                                    st.markdown(
-                                        f"- {where} · {cr.get('relation','연결')}"
-                                        + (f" — {note}" if note else "")
-                                    )
-                else:
-                    # 특정 주차 교재
-                    ses = next((s for s in sessions if s["week"] == selected_week), None)
-                    if ses:
-                        st.markdown(build_session_doc(curriculum, ses))
-                    else:
-                        st.warning("해당 주차 세션을 찾을 수 없습니다.")
 
-            # ── 슬라이드 탭 ───────────────────────────────────────
-            with tab_slides:
-                all_slides = load_slides(curriculum)
+        if selected_week == 0:
+            # ── 전체 보기: 탭으로 교재 전체 / 슬라이드 전체 (각각 자체 스크롤) ──
+            st.caption("📖 과정 전체를 한 번에 읽는 모드입니다. 왼쪽에서 특정 강을 고르면 공부 모드로 바뀝니다.")
+            tab_doc_all, tab_deck_all = st.tabs(["📖 교재 전체", "🖼 슬라이드 전체"])
+            with tab_doc_all:
+                # 모든 강의 지식까지 내장된 전체 교재(자체 스크롤 컨테이너)
+                with st.container(height=600):
+                    st.markdown(build_markdown_doc(curriculum))
+            with tab_deck_all:
                 if not all_slides:
                     st.info('슬라이드가 없습니다. Claude Code에 `"커리큘럼 슬라이드 업데이트해줘"`라고 요청하세요.')
                 else:
-                    # 선택된 주차에 맞게 슬라이드 필터링
-                    if selected_week == 0:
-                        view_slides = all_slides
-                        slide_key = f"slide_idx_{selected_entry['id']}_all"
-                    else:
-                        def _belongs(s):
-                            if s.get("type") == "title":
-                                return True
-                            # week 필드 우선(견고), 없으면 section 부분문자열 폴백
-                            if s.get("week") is not None:
-                                return s.get("week") == selected_week
-                            return f"{selected_week}주차" in s.get("section", "")
-                        view_slides = [s for s in all_slides if _belongs(s)]
-                        slide_key = f"slide_idx_{selected_entry['id']}_{selected_week}"
-
+                    st.caption("⛶ 전체화면 버튼 또는 ← → 화살표 키로 넘길 수 있어요.")
+                    _render_slide_deck(all_slides, height=520)
+                _pptx_download("dl_pptx_all")
+        else:
+            # ── 개별 강(공부 모드): 교재 | 슬라이드 2열, 고정 높이로 페이지 스크롤 최소화 ──
+            tab_doc, tab_slides = st.columns(2)
+            with tab_doc:
+                st.markdown("#### 📖 교재")
+                with st.container(height=560):
+                    _render_textbook(curriculum, sessions, selected_week)
+            with tab_slides:
+                st.markdown("#### 🖼 슬라이드")
+                if not all_slides:
+                    st.info('슬라이드가 없습니다. Claude Code에 `"커리큘럼 슬라이드 업데이트해줘"`라고 요청하세요.')
+                else:
+                    def _belongs(s):
+                        if s.get("type") == "title":
+                            return True
+                        # week 필드 우선(견고), 없으면 section 부분문자열 폴백
+                        if s.get("week") is not None:
+                            return s.get("week") == selected_week
+                        return f"{selected_week}강" in s.get("section", "")
+                    view_slides = [s for s in all_slides if _belongs(s)]
                     if not view_slides:
-                        st.info("이 주차에 해당하는 슬라이드가 없습니다.")
+                        st.info("이 강에 해당하는 슬라이드가 없습니다.")
                     else:
-                        st.caption("⛶ 전체화면 버튼 또는 ← → 화살표 키로 넘길 수 있어요.")
-                        _render_slide_deck(view_slides)
+                        st.caption("⛶ 전체화면 · ← → 키로 넘기기")
+                        _render_slide_deck(view_slides, height=470)
+                _pptx_download("dl_pptx")
 
 # ── 탭 5: 보조 프로그램 ────────────────────────────────────────
 def render_aux():
@@ -1297,15 +1638,19 @@ def render_aux():
                             st.caption("🏷 " + ", ".join(item["tags"]))
                         if item.get("curriculum_id") and item["curriculum_id"] in _cur_title:
                             st.caption(f"📋 {_cur_title[item['curriculum_id']]}")
-                        link_c, del_c = st.columns([3, 1])
+                        if _is_admin():
+                            link_c, del_c = st.columns([3, 1])
+                        else:
+                            link_c, del_c = st.container(), None
                         with link_c:
                             if item.get("url"):
                                 st.link_button("열기 ↗", item["url"], use_container_width=True)
-                        with del_c:
-                            if st.button("🗑", key=f"del_aux_{item['id']}",
-                                         use_container_width=True, help="삭제"):
-                                delete_aux_program(item["id"])
-                                st.rerun()
+                        if del_c is not None:
+                            with del_c:
+                                if st.button("🗑", key=f"del_aux_{item['id']}",
+                                             use_container_width=True, help="삭제"):
+                                    delete_aux_program(item["id"])
+                                    st.rerun()
 
 # ── 탭 6: 에이전트 ─────────────────────────────────────────────
 def render_agents():
@@ -1355,28 +1700,35 @@ AI 기초 커리큘럼 만들어줘    → 커리큘럼 에이전트가 생성
 
 # ── 상단 그룹 네비 (그룹바 + 그룹별 하위탭) ────────────────────────
 GROUPS = {
+    "📚 지식·학습": [
+        ("📚 지식 베이스", render_kb),
+        ("📰 최근 뉴스", render_news),
+        ("📋 커리큘럼", render_curriculum),
+        ("🧰 보조 프로그램", render_aux),
+    ],
     "📥 수집": [
         ("📥 받은 문서", render_inbox),
         ("✏️ 직접 메모", render_memo),
         ("📡 소스", render_sources),
-        ("📰 최근 뉴스", render_news),
-    ],
-    "📚 지식·학습": [
-        ("📚 지식 베이스", render_kb),
-        ("📋 커리큘럼", render_curriculum),
-        ("🧰 보조 프로그램", render_aux),
     ],
     "⚙ 시스템": [
         ("🤖 에이전트", render_agents),
     ],
 }
 
-_group = st.segmented_control(
-    "메뉴", list(GROUPS), default="📥 수집",
-    key="nav_group", label_visibility="collapsed",
-)
-_group = _group or "📥 수집"  # segmented_control은 해제 시 None → 폴백
-_subtabs = GROUPS[_group]
-for _tab, (_label, _render_fn) in zip(st.tabs([t for t, _ in _subtabs]), _subtabs):
-    with _tab:
-        _render_fn()
+# 공부 모드: 커리큘럼이 선택돼 있으면 전역 헤더·사이드바·그룹 네비를 모두
+# 건너뛰고 전용 화면(사이드바 세션 네비 + 본문 교재|슬라이드)으로 간다.
+# 빠져나가기는 상세 화면의 "← 커리큘럼 목록" 버튼(cur_selected_id=None).
+if st.session_state.get("cur_selected_id"):
+    render_curriculum()
+else:
+    render_global_chrome()
+    _group = st.segmented_control(
+        "메뉴", list(GROUPS), default="📚 지식·학습",
+        key="nav_group", label_visibility="collapsed",
+    )
+    _group = _group or "📚 지식·학습"  # 해제 시 None → 폴백
+    _subtabs = GROUPS[_group]
+    for _tab, (_label, _render_fn) in zip(st.tabs([t for t, _ in _subtabs]), _subtabs):
+        with _tab:
+            _render_fn()

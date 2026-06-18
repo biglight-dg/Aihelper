@@ -113,7 +113,7 @@ RSS 뉴스는 `inbox`(정리 대상 문서)와 분리된 **뉴스 스트림**(`d
 
 1. Claude Code에 `"이 유튜브 [링크] 커리큘럼에 넣어줘"` 요청
 2. 팀장이 `reader.fetch_youtube_meta(url)`로 **제목/설명만** 추출 (영상 시청·다운로드 안 함)
-3. 팀장이 제목·설명을 보고 **맞는 커리큘럼 + 적당한 주차**를 판단해 사용자에게 알림
+3. 팀장이 제목·설명을 보고 **맞는 커리큘럼 + 적당한 강(N강)**을 판단해 사용자에게 알림
 4. `curriculum_tools.add_session_reference(curriculum, week, ref)` → `save_curriculum()`
 5. 앱 **커리큘럼 > 교재**에서 참고자료 링크 확인 (클릭 시 브라우저로 열림)
 
@@ -185,19 +185,20 @@ Claude Code가 교육자 역할로 Canva MCP를 사용해 슬라이드를 생성
   → new_curriculum(title) + save_curriculum()
   → data/curricula/{title}.json 생성 + curriculum_db.json 인덱스 등록
 
-"[N]주차 세션 추가: [제목]"
+"[N]강 세션 추가: [제목]"
   → new_session(week=N, title) + curriculum["sessions"].append() + save_curriculum()
+  (※ 내부 week 필드/파라미터는 그대로, 사용자 표기만 "N강")
 
-"[N]주차에 [파일명] 연결해줘"
+"[N]강에 [파일명] 연결해줘"
   → data/knowledge/ 에서 파일 검색 → knowledge_refs에 경로 추가 + save_curriculum()
 
-"[N]주차 목표 바꿔줘: [새 목표]"
+"[N]강 목표 바꿔줘: [새 목표]"
   → 해당 세션 objectives 수정 + save_curriculum()
 
-"[N]주차 활동 추가: [활동]"
+"[N]강 활동 추가: [활동]"
   → activities 리스트에 추가 + save_curriculum()
 
-"[N]주차 삭제해줘"
+"[N]강 삭제해줘"
   → sessions에서 해당 week 제거 + save_curriculum()
 
 "커리큘럼 슬라이드 업데이트해줘"
@@ -270,7 +271,7 @@ Claude Code가 교육자 역할로 Canva MCP를 사용해 슬라이드를 생성
   → QA review() → 점수 + 피드백 → 필요시 교육자 재작성
 
 "이 유튜브 https://youtu.be/... 커리큘럼에 넣어줘"
-  → fetch_youtube_meta(제목/설명만) → 팀장이 커리큘럼·주차 선택
+  → fetch_youtube_meta(제목/설명만) → 팀장이 커리큘럼·강(N강) 선택
   → add_session_reference() → save_curriculum() → 위치 요약
 
 "https://chromewebstore... 보조 프로그램에 추가해줘"

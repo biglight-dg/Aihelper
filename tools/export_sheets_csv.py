@@ -19,7 +19,7 @@ OUT_DIR = BASE / "data" / "outputs" / "sheets"
 
 
 def build_curriculum_rows() -> tuple[list[str], list[dict]]:
-    """커리큘럼 세션 표: 커리큘럼/주차/제목/목표/활동/소요시간/강사노트."""
+    """커리큘럼 세션 표: 커리큘럼/강/제목/목표/활동/소요시간/강사노트."""
     db = json.loads((CURRICULA_DIR / "curriculum_db.json").read_text(encoding="utf-8"))
     rows = []
     for c in db.get("curricula", []):
@@ -31,15 +31,15 @@ def build_curriculum_rows() -> tuple[list[str], list[dict]]:
         for s in cur.get("sessions", []):
             rows.append({
                 "커리큘럼": cur.get("title", ""),
-                "주차": s.get("week", ""),
+                "강": s.get("week", ""),
                 "세션 제목": s.get("title", ""),
                 "목표": "\n".join(s.get("objectives", [])),
                 "활동": "\n".join(s.get("activities", [])),
                 "소요시간": s.get("duration", ""),
                 "강사노트": s.get("notes", ""),
             })
-    rows.sort(key=lambda r: (r["커리큘럼"], r["주차"] if isinstance(r["주차"], int) else 0))
-    fields = ["커리큘럼", "주차", "세션 제목", "목표", "활동", "소요시간", "강사노트"]
+    rows.sort(key=lambda r: (r["커리큘럼"], r["강"] if isinstance(r["강"], int) else 0))
+    fields = ["커리큘럼", "강", "세션 제목", "목표", "활동", "소요시간", "강사노트"]
     return fields, rows
 
 

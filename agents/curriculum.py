@@ -14,7 +14,7 @@ from tools.curriculum_tools import (
 SYSTEM_PROMPT = """당신은 AI 교육팀의 커리큘럼 담당자입니다.
 
 역할:
-- 지식베이스 문서들을 묶어 주차별 학습 커리큘럼 관리
+- 지식베이스 문서들을 묶어 강(講)별 학습 커리큘럼 관리
 - 사용자 명령에 따라 세션 추가/수정/삭제, 슬라이드 재생성
 - 커리큘럼은 data/curricula/ 폴더의 JSON 파일로 저장
 
@@ -27,19 +27,19 @@ SYSTEM_PROMPT = """당신은 AI 교육팀의 커리큘럼 담당자입니다.
   "[제목] 커리큘럼 만들어줘"
     → new_curriculum(title) + save_curriculum()
 
-  "[N]주차 세션 추가: [제목]"
+  "[N]강 세션 추가: [제목]"
     → new_session(week=N, title) + curriculum["sessions"].append() + save_curriculum()
 
-  "[N]주차에 [파일명/제목] 연결해줘"
+  "[N]강에 [파일명/제목] 연결해줘"
     → knowledge_refs에 파일 경로 추가 + save_curriculum()
 
-  "[N]주차 목표 바꿔줘: [새 목표]"
+  "[N]강 목표 바꿔줘: [새 목표]"
     → 해당 세션 objectives 수정 + save_curriculum()
 
-  "[N]주차 활동 추가: [활동]"
+  "[N]강 활동 추가: [활동]"
     → activities 리스트에 추가 + save_curriculum()
 
-  "[N]주차 삭제해줘"
+  "[N]강 삭제해줘"
     → sessions에서 해당 week 제거 + save_curriculum()
 
   "커리큘럼 슬라이드 업데이트해줘"
@@ -82,7 +82,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
 
     sessions = sorted(curriculum.get("sessions", []), key=lambda s: s["week"])
 
-    # 파트별 주차 범위 (예: "Part A · ..." → "1~6주차") 미리 계산
+    # 파트별 강 범위 (예: "Part A · ..." → "1~6강") 미리 계산
     part_weeks: dict[str, list[int]] = {}
     for ses in sessions:
         part = ses.get("part")
@@ -92,7 +92,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
     current_part = None
 
     for ses in sessions:
-        week_label = f"{ses['week']}주차"
+        week_label = f"{ses['week']}강"
 
         # 파트 전환 시 파트 구분 슬라이드 삽입 (Part A/B …)
         part = ses.get("part")
@@ -100,9 +100,9 @@ def build_slides_data(curriculum: dict) -> list[dict]:
             current_part = part
             label, _, ptitle = part.partition("·")
             weeks = part_weeks.get(part, [])
-            week_range = (f"{min(weeks)}~{max(weeks)}주차"
+            week_range = (f"{min(weeks)}~{max(weeks)}강"
                           if weeks and min(weeks) != max(weeks)
-                          else (f"{weeks[0]}주차" if weeks else ""))
+                          else (f"{weeks[0]}강" if weeks else ""))
             slides.append({
                 "slide_number": slide_num,
                 "type": "part_divider",
@@ -114,13 +114,13 @@ def build_slides_data(curriculum: dict) -> list[dict]:
 
         week_no = ses["week"]
 
-        # 주차 구분 슬라이드
+        # 강 구분 슬라이드
         slides.append({
             "slide_number": slide_num,
             "type": "divider",
             "week": week_no,
             "number": f"{ses['week']:02d}",
-            "section": f"{ses['week']}주차: {ses['title']}",
+            "section": f"{ses['week']}강: {ses['title']}",
         })
         slide_num += 1
 
@@ -172,7 +172,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
             "type": "flow",
             "week": week_no,
             "section": week_label,
-            "title": "이번 주차 한눈에",
+            "title": "이번 강 한눈에",
             "steps": steps,
         })
         slide_num += 1
@@ -185,7 +185,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
                 "type": "cards",
                 "week": week_no,
                 "section": week_label,
-                "title": "이번 주차 목표",
+                "title": "이번 강 목표",
                 "variant": "number",
                 "items": short_objs,
             })
@@ -218,8 +218,21 @@ def build_slides_data(curriculum: dict) -> list[dict]:
             })
             slide_num += 1
 
+        # 참고 자료 — 외부 영상·링크 (있을 때만)
+        ref_items = [_ref_slide_item(r) for r in ses.get("references", [])[:5]]
+        if ref_items:
+            slides.append({
+                "slide_number": slide_num,
+                "type": "references",
+                "week": week_no,
+                "section": week_label,
+                "title": "참고 자료 (영상·링크)",
+                "items": ref_items,
+            })
+            slide_num += 1
+
     # 전체 요약 슬라이드
-    all_weeks = [f"{s['week']}주차: {s['title']}" for s in sessions]
+    all_weeks = [f"{s['week']}강: {s['title']}" for s in sessions]
     slides.append({
         "slide_number": slide_num,
         "type": "summary",
@@ -232,6 +245,22 @@ def build_slides_data(curriculum: dict) -> list[dict]:
 
 # ── 헬퍼 함수 ──────────────────────────────────────────────────────
 
+_REF_SLIDE_ICON = {"youtube": "▶", "tool": "🧰", "link": "🔗"}
+
+
+def _ref_slide_item(ref: dict) -> dict:
+    """세션 reference(dict) → 참고자료 슬라이드용 {head, desc} 항목.
+
+    제목 앞에 종류 아이콘, 채널이 있으면 뒤에 덧붙이고, 설명은 한 줄로 줄인다.
+    """
+    icon = _REF_SLIDE_ICON.get(ref.get("type", "link"), "🔗")
+    title = _clean_inline_md(ref.get("title") or ref.get("url", "링크")).strip()
+    channel = _clean_inline_md(ref.get("channel", "")).strip()
+    head = f"{icon} {title}" + (f"  ·  {channel}" if channel else "")
+    desc = _truncate_at_word(_clean_inline_md(ref.get("description", "")).strip(), 70)
+    return {"head": _truncate_at_word(head, 60), "desc": desc}
+
+
 def _learning_path_line(curriculum: dict) -> str:
     """타이틀 슬라이드 부제에 넣을 학습 경로 한 줄(순서·단계·선수)."""
     track = curriculum.get("track", "main")
@@ -239,7 +268,9 @@ def _learning_path_line(curriculum: dict) -> str:
     level = curriculum.get("level", "")
     prereq = curriculum.get("prerequisites", [])
 
-    if track == "elective":
+    if track == "special":
+        head = "특별 강의"
+    elif track == "elective":
         head = "독립 선택 트랙"
     elif order:
         head = f"학습 순서 {order}단계"
@@ -307,7 +338,7 @@ def _to_ppt_bullet(text: str) -> str:
     """
     text = _clean_inline_md(text)
     # 불필요한 주어 제거
-    for prefix in ('이번 주차에서는 ', '학습자는 ', '수강생은 ', '학생은 '):
+    for prefix in ('이번 강에서는 ', '이번 주차에서는 ', '학습자는 ', '수강생은 ', '학생은 '):
         if text.startswith(prefix):
             text = text[len(prefix):]
     # 엔진이 자동 줄바꿈/축소하므로 넉넉히 허용(약 3줄 분량), 넘치면 어절 경계에서.

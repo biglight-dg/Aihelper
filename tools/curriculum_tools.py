@@ -148,7 +148,7 @@ def get_session(curriculum: dict, week: int) -> dict | None:
 
 
 def add_session_reference(curriculum: dict, week: int, ref: dict) -> bool:
-    """특정 주차 세션의 references 리스트에 외부 참고자료(유튜브·링크)를 추가한다.
+    """특정 강 세션의 references 리스트에 외부 참고자료(유튜브·링크)를 추가한다.
 
     ref 예시: {"type": "youtube", "title": ..., "description": ...,
                "url": ..., "channel": ...}
@@ -240,12 +240,14 @@ def _prereq_next_md(curriculum: dict) -> list[str]:
     level = curriculum.get("level", "")
     prereq = curriculum.get("prerequisites", [])
     nxt = curriculum.get("next", [])
-    if not (track == "elective" or order or prereq or nxt or level):
+    if not (track in ("elective", "special") or order or prereq or nxt or level):
         return []
 
     titles = _id_to_title()
     lines = ["### 학습 경로", ""]
-    if track == "elective":
+    if track == "special":
+        path_label = "특별 강의 (실무 주제별 심화 특강 · 단독 수강 가능)"
+    elif track == "elective":
         path_label = "독립 선택 트랙 (메인 과정과 무관하게 단독 수강 가능)"
     elif order:
         path_label = f"메인 학습 경로 {order}단계"
@@ -269,13 +271,13 @@ def _cross_refs_md(cross_refs: list[dict]) -> list[str]:
     if not cross_refs:
         return []
     lines = ["### 🔗 연결 통로", "",
-             "이 주차 내용은 다른 과정의 아래 지점과 이어집니다.", ""]
+             "이 강 내용은 다른 과정의 아래 지점과 이어집니다.", ""]
     for ref in cross_refs:
         icon = _RELATION_ICON.get(ref.get("relation", "연결"), "↔️")
         title = ref.get("title", "")
         week = ref.get("week")
         relation = ref.get("relation", "연결")
-        where = f"{title} {week}주차" if week else title
+        where = f"{title} {week}강" if week else title
         note = (ref.get("note") or "").strip()
         tail = f" — {note}" if note else ""
         lines.append(f"- {icon} **{where}** · {relation}{tail}")
@@ -309,10 +311,10 @@ def build_markdown_doc(curriculum: dict) -> str:
 
     sessions = sorted(curriculum.get("sessions", []), key=lambda s: s["week"])
     for ses in sessions:
-        lines.append(f"- [{ses['week']}주차: {ses['title']}](#{ses['week']}주차-{ses['title'].replace(' ', '-')})")
+        lines.append(f"- [{ses['week']}강: {ses['title']}](#{ses['week']}강-{ses['title'].replace(' ', '-')})")
     lines += ["", "---", ""]
 
-    # 파트별 주차 범위 미리 계산 (Part A/B 헤더용)
+    # 파트별 강 범위 미리 계산 (Part A/B 헤더용)
     part_weeks: dict[str, list[int]] = {}
     for ses in sessions:
         if ses.get("part"):
@@ -327,13 +329,13 @@ def build_markdown_doc(curriculum: dict) -> str:
         if part and part != current_part:
             current_part = part
             weeks = part_weeks.get(part, [])
-            week_range = (f"{min(weeks)}~{max(weeks)}주차"
+            week_range = (f"{min(weeks)}~{max(weeks)}강"
                           if weeks and min(weeks) != max(weeks)
-                          else (f"{weeks[0]}주차" if weeks else ""))
+                          else (f"{weeks[0]}강" if weeks else ""))
             suffix = f"  ·  {week_range}" if week_range else ""
             lines += [f"# {part}{suffix}", "", "---", ""]
 
-        lines.append(f"## {ses['week']}주차: {ses['title']}")
+        lines.append(f"## {ses['week']}강: {ses['title']}")
         lines.append("")
         lines.append(f"**수업 시간**: {ses.get('duration', '60분')}")
         lines.append("")
@@ -343,7 +345,7 @@ def build_markdown_doc(curriculum: dict) -> str:
             lines.append("### 학습 목표")
             lines.append("")
             lines.append(
-                f"이번 {ses['week']}주차를 마치면 다음 내용을 이해하고 실습할 수 있습니다."
+                f"이번 {ses['week']}강을 마치면 다음 내용을 이해하고 실습할 수 있습니다."
             )
             lines.append("")
             for obj in ses["objectives"]:
@@ -415,16 +417,16 @@ def build_session_doc(curriculum: dict, session: dict) -> str:
     total_weeks = len(curriculum.get("sessions", []))
 
     lines = [
-        f"## {week}주차: {title}",
+        f"## {week}강: {title}",
         "",
         f"> **수업 시간**: {session.get('duration', '60분')}  ·  "
-        f"**전체 {total_weeks}주 중 {week}주차**",
+        f"**전체 {total_weeks}강 중 {week}강**",
         "",
     ]
 
     # ── 소개 단락 ──────────────────────────────────────────────────
     lines += [
-        "### 이번 주차 소개",
+        "### 이번 강 소개",
         "",
         _make_intro(week, title, session),
         "",
@@ -435,7 +437,7 @@ def build_session_doc(curriculum: dict, session: dict) -> str:
         lines += [
             "### 학습 목표",
             "",
-            (f"이번 {week}주차를 마치고 나면 다음 내용을 스스로 할 수 있게 됩니다. "
+            (f"이번 {week}강을 마치고 나면 다음 내용을 스스로 할 수 있게 됩니다. "
              "수업을 시작하기 전에 아래 목표를 한 번 읽어두면, "
              "무엇에 집중해야 할지 방향을 잡는 데 도움이 됩니다."),
             "",
@@ -524,32 +526,32 @@ def _make_intro(week: int, title: str, session: dict) -> str:
 
     templates = {
         1: (f"AI 도구를 처음 배울 때 가장 중요한 것은 '어떻게 말을 걸어야 하는가' 입니다. "
-            f"이번 {week}주차에서는 **{title}**를 다루며,{obj_preview} "
+            f"이번 {week}강에서는 **{title}**를 다루며,{obj_preview} "
             "마치 사진작가에게 촬영 지시를 내리듯, AI에게 원하는 결과를 "
             "정확히 요청하는 방법을 익히게 됩니다. "
             "처음에는 낯설게 느껴질 수 있지만, "
             "5단계 공식을 한 번 익히고 나면 어떤 이미지도 만들 수 있다는 자신감이 생깁니다."),
-        2: (f"이번 {week}주차에서는 **{title}**를 배웁니다.{obj_preview} "
-            "지난 주차에서 이미지를 만드는 법을 배웠다면, "
+        2: (f"이번 {week}강에서는 **{title}**를 배웁니다.{obj_preview} "
+            "지난 강에서 이미지를 만드는 법을 배웠다면, "
             "이번에는 나만의 캐릭터를 만들고 다양한 상황에 적용하는 방법을 익힙니다. "
             "광고 소재, SNS 콘텐츠, 교육 자료 등 실제 업무에 바로 쓸 수 있는 기술입니다."),
-        3: (f"이번 {week}주차에서는 **{title}**를 배웁니다.{obj_preview} "
+        3: (f"이번 {week}강에서는 **{title}**를 배웁니다.{obj_preview} "
             "정지 이미지를 만드는 것에서 한 발 나아가, "
             "이제 이미지를 움직이는 영상으로 만드는 전체 흐름을 이해합니다. "
             "스토리보드 9장을 만들고 나면, 30초짜리 미니 광고를 제작할 준비가 됩니다."),
-        4: (f"이번 {week}주차에서는 **{title}**를 배웁니다.{obj_preview} "
+        4: (f"이번 {week}강에서는 **{title}**를 배웁니다.{obj_preview} "
             "Kling AI는 현재 가장 많이 쓰이는 AI 영상 생성 도구 중 하나입니다. "
             "5칸 공식을 외워두면 어떤 씬이든 빠르게 프롬프트를 작성할 수 있습니다. "
             "직접 4가지 씬을 만들어보면서 공식이 자연스럽게 몸에 익도록 합니다."),
-        5: (f"드디어 마지막 {week}주차, **{title}**입니다.{obj_preview} "
+        5: (f"드디어 마지막 {week}강, **{title}**입니다.{obj_preview} "
             "지금까지 만든 이미지와 영상 클립들을 하나의 완성된 영상으로 엮는 시간입니다. "
             "CapCut의 타임라인 편집은 처음 보면 복잡해 보이지만, "
             "기본 기능 3가지(트랜지션, 자막, BGM)만 알면 충분합니다. "
-            "이번 주차가 끝나면 나만의 15~30초 영상을 완성하게 됩니다."),
+            "이번 강이 끝나면 나만의 15~30초 영상을 완성하게 됩니다."),
     }
     return templates.get(
         week,
-        (f"이번 {week}주차에서는 **{title}**를 다룹니다.{obj_preview} "
+        (f"이번 {week}강에서는 **{title}**를 다룹니다.{obj_preview} "
          "아래 핵심 내용을 차근차근 읽고, 실습을 통해 직접 익혀보시기 바랍니다."),
     )
 

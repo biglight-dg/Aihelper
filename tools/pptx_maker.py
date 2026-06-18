@@ -403,6 +403,79 @@ class PptxMaker:
 
         self._add_footer(slide)
 
+    def add_references_slide(self, section_label: str, title: str,
+                             items: list[dict]) -> None:
+        """참고 자료 슬라이드 — 외부 영상·링크를 박스 목록으로.
+
+        items: [{"head": "▶ 제목 · 채널", "desc": "한 줄 설명"}, ...]
+        제목은 굵게(검정), 설명은 보조 회색. 카드 스타일과 통일감을 유지한다.
+        """
+        slide = self._new_slide()
+        self._slide_header(slide, section_label, title)
+
+        items = items[:5]
+        n = len(items)
+        if n == 0:
+            return
+
+        area_top = 2.35
+        area_h = SLIDE_H - area_top - 0.7  # 하단 푸터 공간 확보
+        gap = 0.22
+        box_h = (area_h - gap * (n - 1)) / n
+
+        # 모든 박스에서 제목+설명이 잘리지 않는 최대 폰트를 통일 산출.
+        base_head = 24 if n <= 2 else (20 if n == 3 else (18 if n == 4 else 16))
+        text_w = CONTENT_W
+        usable_h = box_h - 2 * (BOX_PAD * 0.6)
+
+        def _fits(hs: int) -> bool:
+            ds = max(12, hs - 3)
+            for it in items:
+                lines_h = _est_lines(it.get("head", ""), text_w, hs)
+                need = lines_h * hs * 1.25 / 72.0
+                if it.get("desc"):
+                    lines_d = _est_lines(it["desc"], text_w, ds)
+                    need += lines_d * ds * 1.25 / 72.0 + 4 / 72.0
+                if need > usable_h:
+                    return False
+            return True
+
+        head_size = base_head
+        while head_size > 12 and not _fits(head_size):
+            head_size -= 1
+        desc_size = max(12, head_size - 3)
+
+        for i, item in enumerate(items):
+            y = area_top + i * (box_h + gap)
+            box = slide.shapes.add_shape(1, Inches(MARGIN), Inches(y),
+                                         Inches(CONTENT_W), Inches(box_h))
+            box.fill.solid()
+            box.fill.fore_color.rgb = GRAY_XLIGHT
+            box.line.color.rgb = GRAY_LIGHT
+            box.line.width = Pt(1)
+            box.shadow.inherit = False
+            tf = box.text_frame
+            tf.word_wrap = True
+            _pad_tf(tf, pad=0.18)
+            tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+            p = tf.paragraphs[0]
+            p.alignment = PP_ALIGN.LEFT
+            p.line_spacing = 1.12
+            r = p.add_run()
+            r.text = item.get("head", "")
+            _set_font(r, head_size, bold=True, color=BLACK)
+            desc = item.get("desc", "")
+            if desc:
+                p2 = tf.add_paragraph()
+                p2.alignment = PP_ALIGN.LEFT
+                p2.line_spacing = 1.1
+                p2.space_before = Pt(4)
+                r2 = p2.add_run()
+                r2.text = desc
+                _set_font(r2, desc_size, color=GRAY_MID)
+
+        self._add_footer(slide)
+
     def add_flow_slide(self, section_label: str, title: str,
                        steps: list[dict]) -> None:
         """구조도 슬라이드 — 3박스 가로 흐름(목표 ▶ 핵심 개념 ▶ 실습)."""
@@ -601,7 +674,7 @@ class PptxMaker:
         """파트 구분 슬라이드 — 검정 배경 전면, 큰 'PART A' + 파트 제목.
 
         커리큘럼이 Part A/B로 나뉠 때 각 파트 시작에 삽입한다.
-        주차 구분 슬라이드(흰 배경)와 시각적으로 대비시켜 큰 단락을 표시한다.
+        강 구분 슬라이드(흰 배경)와 시각적으로 대비시켜 큰 단락을 표시한다.
         """
         slide = self._new_slide()
 
@@ -632,7 +705,7 @@ class PptxMaker:
                           size=26, color=GRAY_LIGHT,
                           align=PP_ALIGN.CENTER)
 
-        # 주차 범위
+        # 강 범위
         if weeks:
             _add_text_box(slide, weeks,
                           x=1.5, y=5.0, w=10.33, h=0.6,
@@ -653,7 +726,7 @@ class PptxMaker:
         bar.fill.fore_color.rgb = BLACK
         bar.line.fill.background()
 
-        # 큰 주차 번호 (연회색)
+        # 큰 강 번호 (연회색)
         _add_text_box(slide, number,
                       x=MARGIN + 0.4, y=1.4, w=3.0, h=2.2,
                       size=100, bold=True, color=GRAY_LIGHT,
