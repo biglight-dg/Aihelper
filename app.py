@@ -2042,20 +2042,35 @@ def render_aux():
                             unsafe_allow_html=True,
                         )
 
-                        if _is_admin():
-                            link_c, del_c = st.columns([3, 1])
+                        confirm_key = f"confirm_del_aux_{item['id']}"
+                        if _is_admin() and st.session_state.get(confirm_key):
+                            # 삭제 확인 단계: 경고 + 확정/취소를 카드 폭 전체로
+                            st.warning("⚠️ 이 보조 프로그램을 삭제할까요?")
+                            c_yes, c_no = st.columns(2)
+                            if c_yes.button("삭제 확정", key=f"delyes_aux_{item['id']}",
+                                            type="primary", use_container_width=True):
+                                delete_aux_program(item["id"])
+                                st.session_state.pop(confirm_key, None)
+                                st.rerun()
+                            if c_no.button("취소", key=f"delno_aux_{item['id']}",
+                                           use_container_width=True):
+                                st.session_state.pop(confirm_key, None)
+                                st.rerun()
                         else:
-                            link_c, del_c = st.container(), None
-                        with link_c:
-                            if item.get("url"):
-                                st.link_button("열기 ↗", item["url"],
-                                               use_container_width=True, type="primary")
-                        if del_c is not None:
-                            with del_c:
-                                if st.button("🗑", key=f"del_aux_{item['id']}",
-                                             use_container_width=True, help="삭제"):
-                                    delete_aux_program(item["id"])
-                                    st.rerun()
+                            if _is_admin():
+                                link_c, del_c = st.columns([3, 1])
+                            else:
+                                link_c, del_c = st.container(), None
+                            with link_c:
+                                if item.get("url"):
+                                    st.link_button("열기 ↗", item["url"],
+                                                   use_container_width=True, type="primary")
+                            if del_c is not None:
+                                with del_c:
+                                    if st.button("🗑", key=f"del_aux_{item['id']}",
+                                                 use_container_width=True, help="삭제"):
+                                        st.session_state[confirm_key] = True
+                                        st.rerun()
 
 # ── 탭: AI 꿀팁 ────────────────────────────────────────────────
 # 카테고리별 아이콘 (카드/섹션 헤더 시각 구분용). 미정의 분류는 💡 폴백.
