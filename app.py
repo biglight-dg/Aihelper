@@ -1853,7 +1853,8 @@ def render_curriculum():
                     _render_slide_deck(all_slides, height=960)
         else:
             # ── 개별 강(공부 모드): 교재 | 슬라이드 2열, 고정 높이로 페이지 스크롤 최소화 ──
-            tab_doc, tab_slides = st.columns(2)
+            # 교재:슬라이드 = 6:4 (교재를 더 넓게 — 슬라이드가 과도하게 커지지 않게)
+            tab_doc, tab_slides = st.columns([6, 4])
             with tab_doc:
                 st.markdown("#### 📖 교재")
                 with st.container(height=560):
