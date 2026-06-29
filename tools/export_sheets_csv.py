@@ -18,14 +18,30 @@ SOURCES_JSON = BASE / "data" / "sources.json"
 OUT_DIR = BASE / "data" / "outputs" / "sheets"
 
 
+def _resolve_curriculum_path(raw: str) -> Path | None:
+    """인덱스의 path 값을 실제 파일로 해석한다.
+
+    save_curriculum은 스토리지 상대경로("curricula/X.json")로 정규화하지만
+    옛 항목은 절대경로나 프로젝트 상대경로("data/curricula/X.json")일 수 있다.
+    형태에 관계없이 찾도록 후보를 순서대로 시도하고, 마지막엔 파일명으로 매칭한다.
+    """
+    p = Path(raw)
+    candidates = [p] if p.is_absolute() else [BASE / raw, BASE / "data" / raw]
+    candidates.append(CURRICULA_DIR / p.name)  # 최후 폴백: 파일명으로 매칭
+    for cand in candidates:
+        if cand.exists():
+            return cand
+    return None
+
+
 def build_curriculum_rows() -> tuple[list[str], list[dict]]:
     """커리큘럼 세션 표: 커리큘럼/강/제목/목표/활동/소요시간/강사노트."""
     db = json.loads((CURRICULA_DIR / "curriculum_db.json").read_text(encoding="utf-8"))
     rows = []
     for c in db.get("curricula", []):
-        path = Path(c["path"])
-        if not path.exists():
-            print(f"  [건너뜀] 파일 없음: {path}")
+        path = _resolve_curriculum_path(c["path"])
+        if path is None:
+            print(f"  [건너뜀] 파일 없음: {c['path']}")
             continue
         cur = json.loads(path.read_text(encoding="utf-8"))
         for s in cur.get("sessions", []):
