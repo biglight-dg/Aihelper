@@ -1,6 +1,6 @@
 """커리큘럼 에이전트.
 
-build_slides_data() → 수업 PPT용 (짧은 불릿, 표 활용, 명사형 어투)
+build_slides_data() → 4:5 수업 슬라이드용 (한 장 한 메시지, 시각 카드 중심)
 build_doc_content()  → 교재용 Markdown (완전한 문장, 교재 어투)
 """
 
@@ -59,16 +59,17 @@ def build_slides_data(curriculum: dict) -> list[dict]:
     """커리큘럼 JSON → 수업 PPT용 슬라이드 list[dict].
 
     슬라이드 원칙:
-    - 불릿은 짧게 (명사형, 30자 이내)
-    - 비교/목록 데이터는 table 슬라이드로
-    - 슬라이드당 메시지 1개
+    - 교재 문장을 복사하지 않고 핵심 메시지만 남긴다.
+    - 개념 2~3개를 한 장의 시각 카드로 묶는다.
+    - 목표→개념→실습 흐름과 실제 활동을 분리한다.
+    - 4:5 캔버스에서 스크롤 없이 읽히도록 모든 텍스트 길이를 제한한다.
     """
     slides = []
     slide_num = 1
     seen_tables: set[tuple] = set()  # (file_path, table_title) 중복 방지
 
     # 타이틀 — 부제 앞에 학습 경로(순서·선수) 한 줄을 덧붙인다
-    subtitle = curriculum.get("description", "")
+    subtitle = _short_sentence(curriculum.get("description", ""), 105)
     path_line = _learning_path_line(curriculum)
     if path_line:
         subtitle = f"{path_line}\n{subtitle}" if subtitle else path_line
@@ -124,25 +125,40 @@ def build_slides_data(curriculum: dict) -> list[dict]:
         })
         slide_num += 1
 
-        # 개념 설명 슬라이드 (선택) — 용어를 비개발 실무자용으로 풀어 설명 + 비유.
-        # 세션 JSON에 concepts 필드가 있을 때만 생성(없으면 건너뜀, 하위 호환).
+        # 핵심 개념을 한 장의 시각 카드로 통합한다.
+        concept_nodes = []
         for con in ses.get("concepts", [])[:3]:
             term = _clean_inline_md(con.get("term", "")).strip()
             explain = _clean_inline_md(con.get("explain", "")).strip()
             if not term or not explain:
                 continue
+            concept_nodes.append({
+                "title": _truncate_at_word(term, 24),
+                "body": _short_sentence(explain, 72),
+                "caption": _short_sentence(con.get("analogy", ""), 46),
+                "icon": _visual_icon(term),
+            })
+        if not concept_nodes:
+            for objective in ses.get("objectives", [])[:3]:
+                clean = _clean_inline_md(objective)
+                concept_nodes.append({
+                    "title": _flow_item(clean, 24),
+                    "body": _short_sentence(clean, 64),
+                    "caption": "",
+                    "icon": _visual_icon(clean),
+                })
+        if concept_nodes:
             slides.append({
                 "slide_number": slide_num,
-                "type": "concept",
+                "type": "visual_map",
                 "week": week_no,
                 "section": week_label,
-                "term": term,
-                "explain": explain,
-                "analogy": _clean_inline_md(con.get("analogy", "")).strip(),
+                "title": "핵심 개념 한눈에",
+                "nodes": concept_nodes[:3],
             })
             slide_num += 1
 
-        # 지식 파일에서 표 미리 수집 (세션당 최대 2개) — flow 핵심개념에도 재사용
+        # 지식 파일에서 가장 유용한 표 1개만 수집한다.
         session_tables: list[dict] = []
         for ref_path in ses.get("knowledge_refs", []):
             path = Path(ref_path)
@@ -153,19 +169,21 @@ def build_slides_data(curriculum: dict) -> list[dict]:
             text = path.read_text(encoding="utf-8")
             for tbl in _extract_tables_from_md(text):
                 key = (str(path), tbl["title"])
-                if key in seen_tables or len(session_tables) >= 2:
+                if key in seen_tables or len(session_tables) >= 1:
                     continue
                 seen_tables.add(key)
-                session_tables.append(tbl)
+                session_tables.append(_compact_table(tbl))
 
         # 구조도(flow) 슬라이드 — 목표 → 핵심 개념 → 실습 한눈에
-        concept_items = [_flow_item(t["title"]) for t in session_tables][:3]
+        concept_items = [n["title"] for n in concept_nodes][:3]
         if not concept_items:
-            concept_items = ["핵심 개념 정리"]
+            concept_items = [_flow_item(t["title"]) for t in session_tables][:2]
+        if not concept_items:
+            concept_items = ["핵심 개념 연결"]
         steps = [
-            {"label": "목표", "items": [_flow_item(o) for o in ses.get("objectives", [])][:3]},
+            {"label": "배울 것", "items": [_flow_item(o, 30) for o in ses.get("objectives", [])][:2]},
             {"label": "핵심 개념", "items": concept_items},
-            {"label": "실습", "items": [_flow_item(a) for a in ses.get("activities", [])][:3]},
+            {"label": "해볼 것", "items": [_flow_item(a, 30) for a in ses.get("activities", [])][:2]},
         ]
         slides.append({
             "slide_number": slide_num,
@@ -176,20 +194,6 @@ def build_slides_data(curriculum: dict) -> list[dict]:
             "steps": steps,
         })
         slide_num += 1
-
-        # 학습 목표 — 번호 카드
-        if ses.get("objectives"):
-            short_objs = [_to_ppt_bullet(o) for o in ses["objectives"][:4]]
-            slides.append({
-                "slide_number": slide_num,
-                "type": "cards",
-                "week": week_no,
-                "section": week_label,
-                "title": "이번 강 목표",
-                "variant": "number",
-                "items": short_objs,
-            })
-            slide_num += 1
 
         # 표 슬라이드
         for tbl in session_tables:
@@ -204,22 +208,27 @@ def build_slides_data(curriculum: dict) -> list[dict]:
             })
             slide_num += 1
 
-        # 활동 — 번호 카드
+        # 활동 — 수업에서 바로 쓰는 실습 카드
         if ses.get("activities"):
-            short_acts = [_to_ppt_bullet(a) for a in ses["activities"][:4]]
             slides.append({
                 "slide_number": slide_num,
-                "type": "cards",
+                "type": "practice",
                 "week": week_no,
                 "section": week_label,
-                "title": "실습 활동",
-                "variant": "number",
-                "items": short_acts,
+                "title": "직접 해보기",
+                "items": [
+                    {
+                        "label": f"ACT {i}",
+                        "body": _to_ppt_bullet(activity),
+                    }
+                    for i, activity in enumerate(ses["activities"][:3], 1)
+                ],
+                "tip": _short_sentence(ses.get("notes", ""), 92),
             })
             slide_num += 1
 
         # 참고 자료 — 외부 영상·링크 (있을 때만)
-        ref_items = [_ref_slide_item(r) for r in ses.get("references", [])[:5]]
+        ref_items = [_ref_slide_item(r) for r in ses.get("references", [])[:4]]
         if ref_items:
             slides.append({
                 "slide_number": slide_num,
@@ -232,7 +241,10 @@ def build_slides_data(curriculum: dict) -> list[dict]:
             slide_num += 1
 
     # 전체 요약 슬라이드
-    all_weeks = [f"{s['week']}강: {s['title']}" for s in sessions]
+    all_weeks = [
+        _truncate_at_word(f"{s['week']}강 · {s['title']}", 46)
+        for s in sessions
+    ]
     slides.append({
         "slide_number": slide_num,
         "type": "summary",
@@ -243,9 +255,98 @@ def build_slides_data(curriculum: dict) -> list[dict]:
     return slides
 
 
+def validate_slides_data(slides: list[dict]) -> list[str]:
+    """Return layout-risk messages for the fixed 4:5 slide renderer."""
+    errors = []
+    for index, slide in enumerate(slides, 1):
+        stype = slide.get("type", "")
+        label = f"{index}:{stype}"
+        if len(str(slide.get("title", ""))) > 72:
+            errors.append(f"{label} title exceeds 72 chars")
+        if stype == "visual_map":
+            nodes = slide.get("nodes", [])
+            if not 1 <= len(nodes) <= 3:
+                errors.append(f"{label} visual nodes must be 1-3")
+            for node in nodes:
+                if len(node.get("title", "")) > 25:
+                    errors.append(f"{label} node title exceeds 25 chars")
+                if len(node.get("body", "")) > 73:
+                    errors.append(f"{label} node body exceeds 73 chars")
+                if len(node.get("caption", "")) > 47:
+                    errors.append(f"{label} node caption exceeds 47 chars")
+        elif stype == "flow":
+            if len(slide.get("steps", [])) > 3:
+                errors.append(f"{label} flow exceeds 3 steps")
+            for step in slide.get("steps", []):
+                if len(step.get("items", [])) > 3:
+                    errors.append(f"{label} flow step exceeds 3 items")
+        elif stype == "table":
+            if len(slide.get("headers", [])) > 4:
+                errors.append(f"{label} table exceeds 4 columns")
+            if len(slide.get("rows", [])) > 6:
+                errors.append(f"{label} table exceeds 6 rows")
+        elif stype == "practice":
+            if len(slide.get("items", [])) > 3:
+                errors.append(f"{label} practice exceeds 3 activities")
+            for item in slide.get("items", []):
+                if len(item.get("body", "")) > 63:
+                    errors.append(f"{label} practice item exceeds 63 chars")
+        elif stype == "summary" and len(slide.get("lessons", [])) > 12:
+            errors.append(f"{label} summary exceeds 12 lessons")
+    return errors
+
+
 # ── 헬퍼 함수 ──────────────────────────────────────────────────────
 
 _REF_SLIDE_ICON = {"youtube": "▶", "tool": "🧰", "link": "🔗"}
+
+
+def _short_sentence(text: str, max_len: int) -> str:
+    """긴 교재 문장을 슬라이드용 한 문장으로 줄인다."""
+    text = re.sub(r"\s+", " ", _clean_inline_md(text or "")).strip()
+    if not text:
+        return ""
+    parts = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)
+    first = parts[0].strip()
+    return _truncate_at_word(first, max_len)
+
+
+def _visual_icon(text: str) -> str:
+    """개념 키워드를 코드로 그리는 픽셀 아이콘 종류에 매핑한다."""
+    lowered = text.lower()
+    groups = [
+        (("보안", "안전", "저작권", "권한", "privacy"), "shield"),
+        (("파일", "폴더", "문서", "마크다운", "지식"), "file"),
+        (("검색", "리서치", "수집", "rss", "voc"), "search"),
+        (("자동화", "워크플로", "agent", "에이전트", "hook"), "flow"),
+        (("데이터", "엑셀", "표", "분석", "지표"), "chart"),
+        (("이미지", "영상", "디자인", "슬라이드"), "image"),
+        (("챗봇", "chat", "대화", "프롬프트", "질문"), "chat"),
+        (("고객", "crm", "영업", "마케팅"), "people"),
+    ]
+    for keywords, icon in groups:
+        if any(keyword in lowered for keyword in keywords):
+            return icon
+    return "idea"
+
+
+def _compact_table(table: dict) -> dict:
+    """4:5 슬라이드 한 장에 들어오도록 표 크기와 셀 길이를 제한한다."""
+    headers = [
+        _truncate_at_word(_clean_inline_md(str(value)), 18)
+        for value in table.get("headers", [])[:4]
+    ]
+    rows = []
+    for row in table.get("rows", [])[:6]:
+        rows.append([
+            _truncate_at_word(_clean_inline_md(str(row[i] if i < len(row) else "")), 34)
+            for i in range(len(headers))
+        ])
+    return {
+        "title": _truncate_at_word(_clean_inline_md(table.get("title", "핵심 정리")), 34),
+        "headers": headers,
+        "rows": rows,
+    }
 
 
 def _ref_slide_item(ref: dict) -> dict:
@@ -341,8 +442,8 @@ def _to_ppt_bullet(text: str) -> str:
     for prefix in ('이번 강에서는 ', '이번 주차에서는 ', '학습자는 ', '수강생은 ', '학생은 '):
         if text.startswith(prefix):
             text = text[len(prefix):]
-    # 엔진이 자동 줄바꿈/축소하므로 넉넉히 허용(약 3줄 분량), 넘치면 어절 경계에서.
-    return _truncate_at_word(text.strip(), 90)
+    # 한 카드에서 두 줄 이내로 읽히는 길이만 허용한다.
+    return _truncate_at_word(text.strip(), 62)
 
 
 def _extract_tables_from_md(text: str) -> list[dict]:
