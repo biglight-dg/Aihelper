@@ -1,7 +1,6 @@
 from pathlib import Path
 from html import escape as html_escape
 import streamlit as st
-import streamlit.components.v1 as components
 from tools import storage
 from tools.file_tools import load_db, save_knowledge_file
 from tools.reader import read_inbox_files, fetch_url, save_to_inbox, read_pdf
@@ -906,7 +905,7 @@ def _render_slide_deck(slides: list[dict], height: int = 560) -> None:
         .replace("__CW__", str(CANVAS_W))
         .replace("__CH__", str(CANVAS_H))
     )
-    components.html(html, height=height, scrolling=False)
+    st.iframe(html, height=height, tab_index=-1)
 
 
 @st.cache_data(ttl=_CACHE_TTL, show_spinner=False)
