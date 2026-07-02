@@ -1,4 +1,4 @@
-# 커리큘럼 관리
+# Codex 커리큘럼 관리
 
 `tools/curriculum_tools.py`와 `agents/curriculum.py`를 사용해 커리큘럼을 관리한다.
 

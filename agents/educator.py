@@ -169,9 +169,9 @@ class Educator:
         """원자료를 교육 문서 Markdown 포맷으로 구조화한다."""
         return DOCUMENT_TEMPLATE.format(
             title=title,
-            intro="[Claude Code가 작성]",
+            intro="[Codex가 작성]",
             body=raw_content,
-            key_lessons="[Claude Code가 작성]",
+            key_lessons="[Codex가 작성]",
             source=source if source else "사용자 제공 자료",
         )
 

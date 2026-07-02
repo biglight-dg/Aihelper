@@ -6,7 +6,7 @@
 설계 원칙: 새 API 키를 만들지 않는다.
   - RSS: feedparser, 키 불필요
   - 전문가 SNS: og 메타 best-effort (부실하면 팀장이 just-scrape 스킬로 재수집)
-  - 웹검색: 팀장(Claude Code)이 WebSearch/just-scrape로 모은 텍스트를 save_research()로 적재
+  - 웹검색: 팀장(Codex)이 WebSearch/just-scrape로 모은 텍스트를 save_research()로 적재
 
 워치리스트 저장소: data/sources.json (data는 Google 공유 드라이브 정션 → 팀 공동 편집)
 """
@@ -134,7 +134,7 @@ def sync_expert_feeds() -> dict:
     """전문가 중 유튜브인데 아직 feed_url이 없는 항목을 RSS로 자동 연결한다.
 
     등록 즉시 자동화(add_expert)의 안전망 + 기존 전문가 1회 백필 겸용.
-    매주 스케줄러(AI교육팀_전문가피드동기화)가 호출한다.
+    매주 스케줄러(Aihelper-ExpertFeed)가 호출한다.
     반환: {"linked": [{name, feed}], "skipped": [{name, platform, url}]}
     """
     data = load_sources()
@@ -233,7 +233,7 @@ def fetch_social_post(url: str) -> dict:
     """SNS 게시물 링크에서 og 메타(제목·캡션·이미지)를 best-effort로 추출한다.
 
     인스타·X·링크드인은 로그인 벽/봇 차단으로 캡션 일부만 잡히거나 비어 있을 수 있다.
-    본문이 부실하면 팀장(Claude Code)이 just-scrape 스킬로 재수집하는 것을 권장한다.
+    본문이 부실하면 팀장(Codex)이 just-scrape 스킬로 재수집하는 것을 권장한다.
     실패해도 예외 없이 가능한 값만 채워 반환한다.
 
     반환: {"type": "social", "platform", "title", "caption", "image", "url"}
@@ -266,7 +266,7 @@ def save_social_post(url: str) -> Path:
         f"출처(SNS/{post['platform']}): {url}\n"
         f"제목: {post['title']}\n\n"
     )
-    body = post["caption"] or "[캡션을 가져오지 못했습니다 — 본문이 필요하면 Claude Code에 'just-scrape로 가져와줘'라고 요청하세요]"
+    body = post["caption"] or "[캡션을 가져오지 못했습니다 — 본문이 필요하면 Codex에 'just-scrape로 가져와줘'라고 요청하세요]"
     filename = f"sns_{post['platform']}_{(post['title'] or 'post')[:30]}".strip()
     return save_to_inbox(filename, header + body)
 

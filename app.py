@@ -1017,7 +1017,7 @@ def _render_sidebar_nav() -> None:
 # ── 탭 1: 받은 문서 ────────────────────────────────────────────
 def render_inbox():
     _hero("받은 문서",
-          "파일을 올리거나 링크를 입력하면 inbox에 저장됩니다. 그 다음 Claude Code에 '정리해줘'라고 요청하세요.",
+          "파일을 올리거나 링크를 입력하면 inbox에 저장됩니다. 그 다음 Codex에 '정리해줘'라고 요청하세요.",
           "📥")
 
     col1, col2 = st.columns(2)
@@ -1115,7 +1115,7 @@ def render_inbox():
 def render_sources():
     _hero("소스",
           "RSS 피드와 전문가 SNS를 등록해 자료를 inbox로 자동 수집합니다. "
-          "웹 검색이나 SNS 본문 정리는 Claude Code에 '정리해줘'라고 요청하면 더 안정적입니다.",
+          "웹 검색이나 SNS 본문 정리는 Codex에 '정리해줘'라고 요청하면 더 안정적입니다.",
           "📡")
 
     src = load_sources()
@@ -1181,7 +1181,7 @@ def render_sources():
             with st.spinner("게시물 정보를 가져오는 중..."):
                 path = save_social_post(post_url.strip())
             st.success(f"저장 완료: {path.rsplit('/', 1)[-1]}")
-            st.caption("캡션이 부실하면 Claude Code에 'just-scrape로 가져와줘'라고 요청하세요.")
+            st.caption("캡션이 부실하면 Codex에 'just-scrape로 가져와줘'라고 요청하세요.")
             st.rerun()
 
         if src["experts"]:
@@ -1198,7 +1198,7 @@ def render_sources():
                 elif kind == "youtube":
                     badge = "🔗 RSS 연결 가능 — 오른쪽 'RSS 연결' 버튼을 누르세요"
                 else:
-                    badge = "🔗 블로그 RSS 연결 가능 — Claude Code에 'RSS 피드 추가'로 등록하세요"
+                    badge = "🔗 블로그 RSS 연결 가능 — Codex에 'RSS 피드 추가'로 등록하세요"
                 c1.markdown(
                     f"**{e['name']}** ({e['platform']}){note}  \n"
                     f"<small>{e['url']}</small>  \n<small>{badge}</small>",
@@ -1250,11 +1250,11 @@ def render_news():
     latest = latest_digest()
     if latest:
         _render_digest(latest)
-        st.caption("🔄 새로 정리하려면 Claude Code에 **`이번 주 뉴스 정리해줘`** 라고 요청하세요.")
+        st.caption("🔄 새로 정리하려면 Codex에 **`이번 주 뉴스 정리해줘`** 라고 요청하세요.")
     else:
         st.info(
             "아직 이번 주 통합 요약이 없습니다.  \n"
-            "**Claude Code에 `이번 주 뉴스 정리해줘`** 라고 요청하면 핵심 뉴스 3개(생각해볼 질문 포함)"
+            "**Codex에 `이번 주 뉴스 정리해줘`** 라고 요청하면 핵심 뉴스 3개(생각해볼 질문 포함)"
             " + 자투리 10개 + 필요 기술·공부거리로 정리해 드립니다."
         )
 
@@ -1317,7 +1317,7 @@ def render_news():
 # ── 탭 2: 직접 메모 ────────────────────────────────────────────
 def render_memo():
     _hero("직접 메모",
-          "마크다운으로 메모를 작성하고 inbox에 저장하세요. 저장 후 Claude Code에 '정리해줘'라고 요청하세요.",
+          "마크다운으로 메모를 작성하고 inbox에 저장하세요. 저장 후 Codex에 '정리해줘'라고 요청하세요.",
           "✏️")
 
     # nonce로 위젯 key를 갈아끼워 저장 후 폼을 비울 수 있게 한다
@@ -1374,7 +1374,7 @@ def render_memo():
 # ── 탭 3: 지식 베이스 ──────────────────────────────────────────
 def render_kb():
     _hero("지식 베이스",
-          "Claude Code가 정리해 저장한 문서들입니다.",
+          "Codex가 정리해 저장한 문서들입니다.",
           "📚")
     _stat_widgets()
     st.write("")
@@ -1383,7 +1383,7 @@ def render_kb():
     items = db.get("items", [])
 
     if not items:
-        st.info("아직 저장된 지식이 없습니다. inbox에 문서를 넣고 Claude Code에 '정리해줘'라고 말해보세요.")
+        st.info("아직 저장된 지식이 없습니다. inbox에 문서를 넣고 Codex에 '정리해줘'라고 말해보세요.")
     else:
         all_tags = sorted({tag for item in items for tag in item.get("tags", [])})
 
@@ -1654,7 +1654,7 @@ def render_curriculum():
               "📋")
 
         if not curricula:
-            st.info('아직 커리큘럼이 없습니다. Claude Code에 `"AI 기초 커리큘럼 만들어줘"`라고 말해보세요.')
+            st.info('아직 커리큘럼이 없습니다. Codex에 `"AI 기초 커리큘럼 만들어줘"`라고 말해보세요.')
         else:
             # 각 커리큘럼 메타를 한 번씩 로드해 두고 트랙/순서로 그룹·정렬한다
             loaded = []
@@ -1759,7 +1759,7 @@ def render_curriculum():
                 _render_grid(elective_items)
 
         st.divider()
-        with st.expander("💬 Claude Code 명령어 가이드"):
+        with st.expander("💬 Codex 명령어 가이드"):
             st.code("""\
 [제목] 커리큘럼 만들어줘      → 새 커리큘럼 생성
 [N]강 세션 추가: [제목]       → 세션 추가
@@ -1884,7 +1884,7 @@ def render_curriculum():
                     st.markdown(_escape_tilde(build_markdown_doc(curriculum)))
             with tab_deck_all:
                 if not all_slides:
-                    st.info('슬라이드가 없습니다. Claude Code에 `"커리큘럼 슬라이드 업데이트해줘"`라고 요청하세요.')
+                    st.info('슬라이드가 없습니다. Codex에 `"커리큘럼 슬라이드 업데이트해줘"`라고 요청하세요.')
                 else:
                     st.caption("⛶ 전체화면 버튼 또는 ← → 화살표 키로 넘길 수 있어요.")
                     _render_slide_deck(all_slides, height=960)
@@ -1899,7 +1899,7 @@ def render_curriculum():
             with tab_slides:
                 st.markdown("#### 🖼 슬라이드")
                 if not all_slides:
-                    st.info('슬라이드가 없습니다. Claude Code에 `"커리큘럼 슬라이드 업데이트해줘"`라고 요청하세요.')
+                    st.info('슬라이드가 없습니다. Codex에 `"커리큘럼 슬라이드 업데이트해줘"`라고 요청하세요.')
                 else:
                     def _belongs(s):
                         if s.get("type") == "title":
@@ -1975,7 +1975,7 @@ def render_aux():
     aux_all = load_aux_db().get("items", [])
     if not aux_all:
         st.info("아직 등록된 보조 프로그램이 없습니다. 위 '추가' 폼을 쓰거나, "
-                "Claude Code에 `\"[툴 링크] 보조 프로그램에 추가해줘\"`라고 말해보세요.")
+                "Codex에 `\"[툴 링크] 보조 프로그램에 추가해줘\"`라고 말해보세요.")
     else:
         ac_q, ac_sort = st.columns([2, 1])
         with ac_q:
@@ -2030,7 +2030,7 @@ def render_aux():
                             desc_html = (
                                 '<div style="font-size:0.84rem;color:var(--ink-faint);'
                                 'font-style:italic;line-height:1.5;flex:1;min-height:0;overflow:hidden;">'
-                                '설명이 아직 없어요 — Claude Code에 “이 도구 설명 추가해줘”'
+                                '설명이 아직 없어요 — Codex에 “이 도구 설명 추가해줘”'
                                 '라고 요청하면 채워집니다.</div>'
                             )
 
@@ -2112,7 +2112,8 @@ def render_aux():
 # ── 탭: AI 꿀팁 ────────────────────────────────────────────────
 # 카테고리별 아이콘 (카드/섹션 헤더 시각 구분용). 미정의 분류는 💡 폴백.
 _TIP_CAT_EMOJI = {
-    "Claude Code": "🤖",
+    "Codex": "🤖",
+    "Claude Code": "🤖",  # legacy records
     "프롬프트": "✍️",
     "워크플로우": "🔄",
     "ChatGPT·제미나이": "💬",
@@ -2129,7 +2130,7 @@ def _tip_emoji(cat: str) -> str:
 def render_tips():
     _hero("AI 꿀팁",
           "바로 따라 할 수 있는 AI 사용 노하우 모음입니다. "
-          "Claude Code에 \"[내용] 꿀팁 추가해줘\"라고 하면 채워집니다.",
+          "Codex에 \"[내용] 꿀팁 추가해줘\"라고 하면 채워집니다.",
           "💡")
 
     # ── 추가 폼 (관리자 전용) ──
@@ -2158,7 +2159,7 @@ def render_tips():
 
     tips_all = load_tips_db().get("items", [])
     if not tips_all:
-        st.info("아직 등록된 꿀팁이 없습니다. Claude Code에 "
+        st.info("아직 등록된 꿀팁이 없습니다. Codex에 "
                 "\"[내용] 꿀팁 추가해줘\"라고 말해보세요.")
         return
 
@@ -2278,7 +2279,7 @@ def render_tips():
 # ── 탭 6: 에이전트 ─────────────────────────────────────────────
 def render_agents():
     _hero("에이전트 현황",
-          "Claude Code 세션이 팀장 역할을 하며 아래 에이전트들을 오케스트레이션합니다.",
+          "Codex 세션이 팀장 역할을 하며 아래 에이전트들을 오케스트레이션합니다.",
           "🤖")
 
     col_a, col_b = st.columns(2)
@@ -2288,7 +2289,7 @@ def render_agents():
         st.markdown("""
 | 에이전트 | 상태 | 역할 |
 |----------|------|------|
-| 팀장 | 🟢 활성 (Claude Code) | 요청 분석 + 오케스트레이션 |
+| 팀장 | 🟢 활성 (Codex) | 요청 분석 + 오케스트레이션 |
 | 교육자 | 🟢 활성 | 문서 + PPT 슬라이드 생성 |
 | 큐레이터 | 🟢 활성 | DB 관리 + 자동 태깅 |
 | QA | 🟢 활성 | 품질 검토 |
@@ -2312,7 +2313,7 @@ def render_agents():
                 st.caption(f"`{tag}` — {count}개")
 
     st.divider()
-    st.markdown("### Claude Code에 요청하는 방법")
+    st.markdown("### Codex에 요청하는 방법")
     st.code("""inbox 정리해줘              → 교육자가 문서화 + 큐레이터 저장
 PPT 만들어줘                → 교육자가 PPT 슬라이드 생성
 ChatGPT 관련 자료 찾아줘    → 큐레이터가 검색

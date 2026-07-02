@@ -2,7 +2,7 @@
 
 > 마지막 업데이트: 2026-06-27
 
-> 세부 작동 규칙·워크플로는 항상 `CLAUDE.md`가 최종 기준. 이 문서는 세션 시작 시 빠른 현황 파악용 요약이다.
+> 세부 작동 규칙·워크플로는 항상 `AGENTS.md`가 최종 기준. 이 문서는 빠른 현황 파악용 요약이다.
 
 ---
 
@@ -14,18 +14,18 @@
 
 ## 프로젝트 한 줄 요약
 
-**외부 API 없는 로컬 지식 관리 도구.** Claude Code 세션이 **팀장** 역할로 에이전트들을 오케스트레이션해, 사용자가 모은 자료를 교육 문서·슬라이드·커리큘럼으로 정리하고 AI 지식 베이스를 쌓는다.
-위치: `C:\Users\chris\Claude\Projects\claudehelper\`
+**외부 API 없는 로컬 지식 관리 도구.** Codex 세션이 **팀장** 역할로 에이전트들을 오케스트레이션해, 사용자가 모은 자료를 교육 문서·슬라이드·커리큘럼으로 정리하고 AI 지식 베이스를 쌓는다.
+위치: `C:\Users\chris\Codex\Projects\Aihelper\`
 
 ---
 
 ## 아키텍처 (현재)
 
-Claude Code = 팀장. Gemini/외부 LLM API 의존 없음(과거 구조에서 전환됨).
+Codex = 팀장. Gemini/외부 LLM API 의존 없음(과거 구조에서 전환됨).
 
 | 에이전트 | 파일 | 역할 |
 |----------|------|------|
-| 팀장 | `agents/team_lead.py` | 요청 분석 + 작업 라우팅 (Claude Code 본인) |
+| 팀장 | `agents/team_lead.py` | 요청 분석 + 작업 라우팅 (Codex 본인) |
 | 교육자 | `agents/educator.py` | 원자료 → 교육 문서/슬라이드 변환 |
 | 큐레이터 | `agents/curator.py` | 태깅, DB 저장/검색 |
 | QA | `agents/qa.py` | 난이도·정확성·일관성 3단계 검토 (21/30점 이상 통과) |
@@ -60,10 +60,7 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-스크립트/검증/PPTX 실행용 파이썬은 codex 런타임 사용 (PATH python엔 의존성 없음):
-```
-C:\Users\chris\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe
-```
+스크립트/검증/PPTX 실행용 파이썬은 저장소의 `.venv\Scripts\python.exe`를 사용한다.
 한글 출력 시 `$env:PYTHONIOENCODING="utf-8"`, here-string 한글 깨지면 임시 .py 파일로 실행.
 
 ---
@@ -72,7 +69,7 @@ C:\Users\chris\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\p
 
 - `data/`는 **정션** → `G:\공유 드라이브\Chapterkorean-claude-cowork\claudehelper\data` (팀 협업용 Google 공유 드라이브). 실제 파일은 클라우드에 있음.
 - 주요 데이터: `data/inbox/`(원본), `data/knowledge/`(정리본 .md), `data/knowledge_db.json`(인덱스), `data/curricula/`(커리큘럼 JSON+슬라이드), `data/news.json`, `data/sources.json`, `data/aux_programs.json`, `data/ai_tips.json`(AI 꿀팁), `data/outputs/`(PPTX).
-- GitHub private 버전관리: `chapterkorean/claudehelper` (`.env` 보호).
+- GitHub private 버전관리: `biglight-dg/Aihelper` (`.env` 보호).
 
 ---
 
@@ -80,11 +77,11 @@ C:\Users\chris\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\p
 
 | 작업 | 시각 | 스크립트 |
 |------|------|----------|
-| `AI교육팀_전문가피드동기화` | 매주 월 09:15 | `tools/expert_feed_sync.ps1` (유튜브 전문가 RSS 백필) |
-| `AI교육팀_주간뉴스브리핑` | 매주 월 09:23 | `tools/weekly_digest.ps1` (`claude -p` 무인 브리핑) |
-| `AI교육팀_시트동기화` | 매주 월 09:40 | `tools/sheets_sync.ps1` (커리큘럼·지식·소스 → Google Sheets) |
+| `Aihelper-ExpertFeed` | 매주 월 09:15 | `tools/expert_feed_sync.ps1` (유튜브 전문가 RSS 백필) |
+| `Aihelper-WeeklyDigest` | 매주 월 09:23 | `tools/weekly_digest.ps1` (`codex exec` 무인 브리핑) |
+| `Aihelper-SheetsSync` | 매주 월 09:40 | `tools/sheets_sync.ps1` (커리큘럼·지식·소스 → Google Sheets) |
 
-로그: `C:\Users\chris\.claude\weekly_digest.log`
+로그: 저장소의 `logs/` 폴더
 
 ---
 

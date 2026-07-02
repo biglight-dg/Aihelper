@@ -7,14 +7,31 @@ rem  - 앱: Streamlit (127.0.0.1:8501, 터널을 통해서만 외부 접근)
 rem  - 비밀번호: .streamlit\secrets.toml (공유 전에 꼭 바꾸기)
 rem  - 이 창을 닫으면 공유가 종료됩니다.
 
-set "PY=C:\Users\chris\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+set "PY=%~dp0.venv\Scripts\python.exe"
+if not exist "%PY%" (
+  echo Aihelper 가상환경이 없습니다. 먼저 Python 3.12로 .venv를 만들고 requirements.txt를 설치하세요.
+  pause
+  exit /b 1
+)
 set "CF=C:\Users\chris\AppData\Local\Microsoft\WinGet\Packages\Cloudflare.cloudflared_Microsoft.Winget.Source_8wekyb3d8bbwe\cloudflared.exe"
+if not exist "%CF%" (
+  echo Cloudflare Tunnel 프로그램을 찾을 수 없습니다.
+  echo winget install Cloudflare.cloudflared 명령으로 설치하세요.
+  pause
+  exit /b 1
+)
 
 echo [1/2] 앱을 켜는 중...
 start "지식베이스앱" /min cmd /c ""%PY%" -m streamlit run app.py --server.headless true"
 
-echo      앱이 준비될 때까지 잠시 기다립니다...
-timeout /t 7 /nobreak >nul
+echo      앱이 준비될 때까지 확인하는 중...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\wait_for_server.ps1" -Port 8501
+if errorlevel 1 (
+  echo Streamlit 앱이 제한 시간 안에 시작되지 않았습니다.
+  taskkill /F /T /FI "WINDOWTITLE eq 지식베이스앱*" >nul 2>&1
+  pause
+  exit /b 1
+)
 
 echo.
 echo ============================================================

@@ -3,7 +3,7 @@
 inbox(정리 대상 문서)와 분리된 '흘러가는 뉴스' 저장소다.
   - 수집: collect_news()  (앱 열 때 하루 1회 자동 + 버튼/명령)
   - 열람: 앱 '📰 최근 뉴스' 탭
-  - 정리: 팀장(Claude Code)이 "이번 주 뉴스 정리해줘"로 build_digest_source()를
+  - 정리: 팀장(Codex)이 "이번 주 뉴스 정리해줘"로 build_digest_source()를
           읽고 브리핑을 작성 → save_digest()로 지식 문서 + 뉴스 탭에 등록
 
 저장소: data/news.json (data는 Google 공유 드라이브 정션)
@@ -118,7 +118,7 @@ def sources_in_news() -> list[str]:
 def build_digest_source(days: int = 7) -> dict:
     """최근 N일 항목을 카테고리/출처별로 묶어 브리핑 작성용 원자료로 반환한다.
 
-    팀장(Claude Code)이 이 결과를 읽고 '전 소스에서 핵심만' 브리핑을 작성한다.
+    팀장(Codex)이 이 결과를 읽고 '전 소스에서 핵심만' 브리핑을 작성한다.
     반환: {"period", "count", "ids", "by_category": {cat: [item, ...]}}
     """
     items = recent_items(days=days)

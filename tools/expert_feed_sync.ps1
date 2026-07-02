@@ -9,10 +9,12 @@ $ErrorActionPreference = "Continue"
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONIOENCODING = "utf-8"
 
-$proj = "C:\Users\chris\Claude\Projects\claudehelper"
-# codex runtime python where claudehelper deps are installed
-$py  = "C:\Users\chris\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
-$log = "C:\Users\chris\.claude\expert_feed_sync.log"
+$proj = Split-Path $PSScriptRoot -Parent
+$py = Join-Path $proj ".venv\Scripts\python.exe"
+$logDir = Join-Path $proj "logs"
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$log = Join-Path $logDir "expert_feed_sync.log"
+if (-not (Test-Path $py)) { throw "Missing Python venv: $py" }
 
 Set-Location $proj
 "`n===== $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') expert feed sync start =====" | Out-File -FilePath $log -Append -Encoding utf8

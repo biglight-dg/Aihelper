@@ -2,7 +2,7 @@
 
 보조 프로그램(외부 도구 링크)과 분리된 전역 컬렉션(data/ai_tips.json).
 도구가 아니라 '사용법·노하우'를 짧은 카드로 모은다(예: '/goal 로 목표 고정하기').
-앱의 '💡 AI 꿀팁' 탭과 Claude Code(팀장)가 함께 사용한다.
+앱의 '💡 AI 꿀팁' 탭과 Codex(팀장)가 함께 사용한다.
 """
 
 from datetime import datetime
@@ -13,7 +13,8 @@ TIPS_REL = "ai_tips.json"
 
 # 카테고리 표준값 (자유 입력도 허용하되 UI 기본 분류로 사용)
 TIP_CATEGORIES = [
-    "Claude Code",
+    "Codex",
+    "Claude Code",  # legacy records from pre-Codex installations
     "프롬프트",
     "워크플로우",
     "ChatGPT·제미나이",

@@ -1,7 +1,7 @@
 # AI 교육팀 (AI Education Team) — 프로젝트 플랜
 
-> Claude Code로 구현하는 멀티 에이전트 AI 교육팀.
-> 이 문서는 CLAUDE.md 또는 초기 시스템 프롬프트로 활용 가능.
+> Codex로 구현하는 멀티 에이전트 AI 교육팀.
+> 이 문서는 `AGENTS.md`의 설계 참고자료로 활용한다.
 
 ---
 
