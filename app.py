@@ -1418,9 +1418,18 @@ def render_kb():
             rel = storage.to_relpath(item.get("path", ""))
             fname = rel.rsplit("/", 1)[-1]
             created = item.get("created_at", "")[:10]
+            lazy_drive = storage.backend_name() == "drive"
+            load_key = f"kb_content_loaded_{fname}"
 
             tag_str = " ".join(f"`{t}`" for t in tags) if tags else ""
             with st.expander(f"**{title}** {tag_str}  •  {created}"):
+                if lazy_drive and not st.session_state.get(load_key):
+                    if st.button("내용 불러오기", key=f"load_{fname}"):
+                        st.session_state[load_key] = True
+                        st.rerun()
+                    st.caption("클라우드에서는 선택한 문서만 Google Drive에서 불러옵니다.")
+                    continue
+
                 content = storage.read_text(rel) if rel else None
                 if content is not None:
                     st.markdown(_escape_tilde(content))

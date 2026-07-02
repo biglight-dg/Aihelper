@@ -13,8 +13,9 @@
 
 백엔드는 자동 선택된다:
   1) 환경변수 `CLAUDEHELPER_STORAGE` 가 "drive" 또는 "local" 이면 그대로.
-  2) 아니면, 드라이브 설정(서비스계정 + 폴더ID)이 갖춰져 있으면 drive,
-     없으면 local (기본).
+  2) 로컬 `data/`가 있으면 local (PC의 공유 드라이브 정션 우선).
+  3) 로컬 데이터가 없고 드라이브 설정(서비스계정 + 폴더ID)이 갖춰져 있으면
+     drive (Streamlit Cloud), 둘 다 없으면 local.
 
 경로 규약: 모든 함수는 `data/` 기준 **상대경로**를 받는다.
   예) "knowledge_db.json", "curricula/foo.json", "knowledge/bar.md"
@@ -80,6 +81,12 @@ def _select_backend() -> str:
             # drive 강제인데 설정이 없으면 안전하게 local 로 떨어진다.
             return "local"
         return forced
+    # 개발 PC에서는 data가 Google 공유 드라이브 정션이다. 로컬 서비스 계정
+    # 파일도 있으므로 설정 유무만 보면 불필요하게 Drive API를 타게 된다.
+    # 실제 데이터 루트가 보이면 파일 시스템을 우선하고, data가 없는
+    # Streamlit Cloud에서만 Drive 백엔드로 전환한다.
+    if DATA_ROOT.exists():
+        return "local"
     return "drive" if _drive_config() is not None else "local"
 
 
