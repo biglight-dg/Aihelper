@@ -1,6 +1,7 @@
 """큐레이터 에이전트 — 지식베이스 DB를 관리하고 자료를 분류/태깅한다."""
 
 from tools import storage
+from tools.knowledge_index import INDEX_SCHEMA_VERSION, normalize_path, upsert_item
 
 SYSTEM_PROMPT = """당신은 AI 교육팀의 큐레이터입니다.
 
@@ -50,7 +51,9 @@ TAG_RULES: dict[str, list[str]] = {
 
 class Curator:
     def load_db(self) -> dict:
-        return storage.read_json(DB_REL, {"items": []})
+        return storage.read_json(
+            DB_REL, {"schema_version": INDEX_SCHEMA_VERSION, "items": []}
+        )
 
     def save_db(self, db: dict) -> None:
         storage.write_json(DB_REL, db)
@@ -98,18 +101,19 @@ class Curator:
     def add_or_update(self, title: str, path: str, tags: list[str], created_at: str) -> str:
         """항목을 추가하거나 기존 항목을 업데이트한다. 'added' 또는 'updated' 반환."""
         db = self.load_db()
-        for item in db["items"]:
-            if item.get("title", "").strip() == title.strip():
-                item["path"] = path
-                item["tags"] = tags
-                item["updated_at"] = created_at
-                self.save_db(db)
-                return "updated"
-        db["items"].append(
-            {"title": title, "path": path, "tags": tags, "created_at": created_at}
+        relpath = normalize_path(path)
+        content = storage.read_text(relpath)
+        result, _ = upsert_item(
+            db,
+            title=title,
+            path=relpath,
+            tags=tags,
+            created_at=created_at,
+            content=content,
+            path_exists=content is not None,
         )
         self.save_db(db)
-        return "added"
+        return result
 
     def get_stats(self) -> dict:
         """DB 통계를 반환한다."""
