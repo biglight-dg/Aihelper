@@ -62,6 +62,19 @@ def _is_admin() -> bool:
     return st.session_state.get("role") == "admin"
 
 
+def _auth_passwords() -> tuple[str, str]:
+    """Return configured passwords, or empty values when no secrets file exists."""
+    try:
+        return (
+            st.secrets.get("admin_password", ""),
+            st.secrets.get("guest_password", ""),
+        )
+    except Exception:
+        # Streamlit raises before ``get`` can return its default when there is
+        # no secrets.toml. Local-only installs intentionally support that case.
+        return "", ""
+
+
 def _check_auth() -> None:
     """비밀번호로 입장 + 역할 부여. 인증 전에는 본문 렌더를 막는다.
 
@@ -71,8 +84,7 @@ def _check_auth() -> None:
     if st.session_state.get("auth_ok"):
         return
 
-    admin_pw = st.secrets.get("admin_password", "")
-    guest_pw = st.secrets.get("guest_password", "")
+    admin_pw, guest_pw = _auth_passwords()
 
     # 비번이 하나도 설정되지 않은 환경(로컬 개발)은 게이트를 건너뛴다.
     if not admin_pw and not guest_pw:
@@ -1120,7 +1132,8 @@ def _render_sidebar_nav() -> None:
             )
 
         # 현재 접속 역할 표시 + 로그아웃 (비번 게이트가 켜진 경우에만 의미 있음)
-        if st.secrets.get("admin_password", "") or st.secrets.get("guest_password", ""):
+        admin_pw, guest_pw = _auth_passwords()
+        if admin_pw or guest_pw:
             st.divider()
             _role_label = "관리자 (전체 권한)" if _is_admin() else "손님 (보기·입력)"
             st.caption(f"👤 {_role_label}")
