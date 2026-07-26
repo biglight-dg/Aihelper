@@ -754,7 +754,8 @@ def _make_intro(week: int, title: str, session: dict) -> str:
     summary = (session.get("summary") or "").strip()
     first_objective = next(iter(session.get("objectives", [])), "")
     objective_line = (
-        f"첫 번째 목표는 **{first_objective}**입니다. " if first_objective else ""
+        f"첫 번째 목표는 다음과 같습니다: **{first_objective}**. "
+        if first_objective else ""
     )
     summary_line = summary if summary else f"{title}의 기본 구조와 적용 순서를 다룹니다."
     return (

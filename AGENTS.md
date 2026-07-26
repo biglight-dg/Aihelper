@@ -260,7 +260,8 @@ Codex가 교육자 역할로 Canva MCP를 사용해 슬라이드를 생성한다
 ### Phase 4 학습 자료 배포
 
 Phase 4의 검증된 42개 원문을 14강 과정·팁·실습·퀴즈·체크리스트로 갱신할 때는
-`directives/phase4-learning-assets.md`와 `skills/aihelper-learning-publisher/SKILL.md`를 먼저 읽는다.
+`directives/phase4-learning-assets.md`, `directives/learning-experience.md`,
+`skills/aihelper-learning-publisher/SKILL.md`를 먼저 읽는다.
 
 - 기본 순서는 `배우기 → 예시 → 해보기 → 통과`다.
 - 원문 `KPK/TIP/CHK` 경로와 ID를 생성 데이터에 보존한다.
@@ -304,6 +305,7 @@ Phase 4의 검증된 42개 원문을 14강 과정·팁·실습·퀴즈·체크�
 | `skills/pptx/` | PPTX 스킬 문서 + 디자인 명세 |
 | `directives/curriculum.md` | Codex 커리큘럼 관리 지침 |
 | `directives/phase4-learning-assets.md` | Phase 4 학습 자료 생성·격리 검증·배포 지침 |
+| `directives/learning-experience.md` | 초보자 설명·14개 분야 탐색·슬라이드·화면 디자인 지침 |
 | `scripts/build_phase4_learning_assets.py` | KPK/TIP/CHK 42개에서 14강 전달 데이터를 안정 ID로 생성 |
 | `scripts/verify_phase4_learning_assets.py` | manifest·슬라이드·교재·Streamlit 화면 회귀검사 |
 | `skills/aihelper-learning-publisher/` | Phase 4 학습 자료 반복 배포 Skill |

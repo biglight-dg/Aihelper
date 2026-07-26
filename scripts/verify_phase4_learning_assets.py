@@ -100,7 +100,13 @@ def verify_app(data_root: Path) -> list[str]:
     try:
         storage.DATA_ROOT = data_root
         storage._BACKEND = None
-        for page in ("📚 지식 베이스", "📋 커리큘럼", "🧪 실습·체크", "💡 AI 꿀팁"):
+        for page in (
+            "🎓 학습 홈",
+            "📚 지식 베이스",
+            "📋 커리큘럼",
+            "🧪 실습·체크",
+            "💡 AI 꿀팁",
+        ):
             at = AppTest.from_file(str(REPO_ROOT / "app.py"))
             at.session_state["auth_ok"] = True
             at.session_state["role"] = "admin"

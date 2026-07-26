@@ -145,21 +145,24 @@ _THEME_CSS = """
 @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/dist/web/variable/pretendardvariable-dynamic-subset.css");
 
 :root {
-  --ink: #1a1a1a;          /* soft true-black */
-  --ink-muted: #615d59;    /* 보조 텍스트 */
-  --ink-faint: #a39e98;    /* 캡션·플레이스홀더 */
-  --primary: #7C5CFC;      /* 보라 액센트 */
-  --primary-active: #6A47E8;
-  --primary-soft: #EDE9FE; /* 칩·배지·활성 네비 배경 */
-  --canvas: #F5F3FF;       /* 연보라 캔버스 */
-  --hairline: #ebe7fa;
+  --ink: #172033;
+  --ink-muted: #535b70;
+  --ink-faint: #7c8395;
+  --primary: #6350e6;
+  --primary-active: #4f3fc4;
+  --primary-soft: #eeeafe;
+  --canvas: #f7f6fb;
+  --hairline: #e2dfec;
   --surface: #ffffff;
-  /* Level-1 다층 미세 그림자 (Notion Elevation) */
-  --shadow-soft: 0 0.175px 1.041px rgba(0,0,0,0.01),
-                 0 0.8px 2.925px rgba(0,0,0,0.02),
-                 0 2.025px 7.847px rgba(0,0,0,0.027),
-                 0 4px 18px rgba(0,0,0,0.04);
+  --practice: #0d8b7d;
+  --practice-soft: #e7f5f2;
+  --check: #b76312;
+  --check-soft: #fff2df;
+  --map: #172033;
+  --shadow-soft: 0 12px 30px rgba(43,35,85,0.08);
 }
+
+.stApp, [data-testid="stAppViewContainer"] { background: var(--canvas); }
 
 .stApp, .stApp button, .stApp input, .stApp textarea, .stApp select,
 .stMarkdown, [data-testid="stSidebar"] {
@@ -228,7 +231,13 @@ div[data-testid="stVerticalBlockBorderWrapper"][style*="border"] {
   background: var(--surface);
   border: 1px solid var(--hairline) !important;
   border-radius: 16px;
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
+}
+
+button:focus-visible, input:focus-visible, textarea:focus-visible,
+[role="tab"]:focus-visible, [role="checkbox"]:focus-visible {
+  outline: 3px solid rgba(99,80,230,0.28) !important;
+  outline-offset: 2px !important;
 }
 
 /* 입력: 4px (pill 금지) · 헤어라인 */
@@ -287,6 +296,55 @@ div[data-testid="stVerticalBlockBorderWrapper"][style*="border"] {
   font-size: 1.15rem; font-weight: 800; color: var(--ink);
   letter-spacing: -0.5px; padding: 0.2rem 0.3rem 0.6rem;
 }
+
+/* 학습 화면의 공통 편집 레이어: 장식보다 현재 위치와 다음 행동을 보여준다. */
+.page-hero {
+  display:grid; grid-template-columns:72px minmax(0,1fr); gap:1.1rem;
+  align-items:center; background:var(--surface); border:1px solid var(--hairline);
+  border-radius:16px; padding:1.35rem 1.5rem; margin-bottom:1.35rem;
+}
+.page-hero__mark {
+  width:72px; height:72px; display:grid; place-items:center; border-radius:14px;
+  background:var(--primary); color:#fff; font-weight:900; font-size:1.7rem;
+}
+.page-hero__title {
+  color:var(--ink); font-size:clamp(1.35rem,2.5vw,1.85rem); font-weight:850;
+  letter-spacing:-0.025em; line-height:1.2;
+}
+.page-hero__sub { color:var(--ink-muted); margin-top:.4rem; line-height:1.55; max-width:72ch; }
+
+.learning-map {
+  background:var(--map); color:#fff; border-radius:16px; padding:1.3rem 1.45rem;
+  margin:.2rem 0 1.1rem;
+}
+.learning-map__label { color:#cfc8ff; font-size:.78rem; font-weight:800; }
+.learning-map__title { font-size:1.22rem; font-weight:850; margin:.25rem 0 .85rem; }
+.learning-map__rail { display:grid; grid-template-columns:repeat(14,minmax(24px,1fr)); gap:.32rem; }
+.learning-map__cell {
+  min-height:38px; display:grid; place-items:center; border:1px solid #464e62;
+  color:#d8dbea; font-size:.76rem; font-weight:800; border-radius:7px;
+}
+.learning-map__cell:nth-child(1), .learning-map__cell:nth-child(3),
+.learning-map__cell:nth-child(7), .learning-map__cell:nth-child(11) {
+  background:var(--primary); border-color:var(--primary); color:#fff;
+}
+.lesson-brief {
+  display:grid; grid-template-columns:1.1fr 1.4fr 1fr; gap:0;
+  background:var(--surface); border:1px solid var(--hairline); border-radius:16px;
+  overflow:hidden; margin:0 0 1rem;
+}
+.lesson-brief__cell { padding:1rem 1.1rem; min-width:0; }
+.lesson-brief__cell + .lesson-brief__cell { border-left:1px solid var(--hairline); }
+.lesson-brief__label { color:var(--primary); font-size:.75rem; font-weight:850; margin-bottom:.35rem; }
+.lesson-brief__body { color:var(--ink); font-size:.9rem; line-height:1.5; }
+
+@media (max-width: 760px) {
+  .page-hero { grid-template-columns:52px minmax(0,1fr); padding:1rem; }
+  .page-hero__mark { width:52px; height:52px; font-size:1.25rem; }
+  .learning-map__rail { grid-template-columns:repeat(7,minmax(24px,1fr)); }
+  .lesson-brief { grid-template-columns:1fr; }
+  .lesson-brief__cell + .lesson-brief__cell { border-left:0; border-top:1px solid var(--hairline); }
+}
 </style>
 """
 
@@ -300,6 +358,10 @@ _DARK_CSS = """
   --ink-faint: #6f6f6f;
   --hairline: #373737;
   --surface: #2a2a2a;
+  --canvas: #191919;
+  --practice-soft: #183933;
+  --check-soft: #3e2b16;
+  --map: #111827;
 }
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
   background-color: #191919 !important;
@@ -514,8 +576,8 @@ def _slide_inner_html(slide: dict) -> str:
             ) if caption else ""
             nodes_html.append(
                 '<div style="display:grid;grid-template-columns:148px 1fr;gap:28px;align-items:center;'
-                'min-height:0;background:#F5F3FF;border:5px solid #171522;padding:22px 30px;'
-                'box-shadow:12px 12px 0 #D9D3FF;overflow:hidden;">'
+                'min-height:0;background:#F8F7FC;border:2px solid #DAD7E6;border-radius:18px;'
+                'padding:22px 30px;overflow:hidden;">'
                 f'{_pixel_icon_html(node.get("icon", "idea"))}'
                 '<div style="min-width:0;overflow:hidden;">'
                 '<div style="font-size:43px;font-weight:900;color:#171522;line-height:1.15;'
@@ -541,9 +603,9 @@ def _slide_inner_html(slide: dict) -> str:
         variant = slide.get("variant", "number")
         items = slide.get("items", [])
         cards_html = "".join(
-            '<div style="display:flex;align-items:stretch;background:#f2f2f2;border:1px solid #ccc;'
-            'border-radius:10px;flex:1;min-height:0;overflow:hidden;">'
-            '<div style="background:#111;color:#fff;font-weight:800;display:flex;align-items:center;'
+            '<div style="display:flex;align-items:stretch;background:#F8F7FC;border:2px solid #DAD7E6;'
+            'border-radius:16px;flex:1;min-height:0;overflow:hidden;">'
+            '<div style="background:#6350E6;color:#fff;font-weight:800;display:flex;align-items:center;'
             'justify-content:center;min-width:80px;'
             f'font-size:44px;">{(i+1) if variant=="number" else "•"}</div>'
             '<div style="display:flex;align-items:center;padding:0.6rem 1.4rem;'
@@ -569,10 +631,10 @@ def _slide_inner_html(slide: dict) -> str:
         for idx, item in enumerate(practice_items, 1):
             cards.append(
                 '<div style="display:grid;grid-template-columns:134px 1fr;align-items:stretch;'
-                'background:#FFF;border:5px solid #171522;box-shadow:10px 10px 0 #D9D3FF;'
+                'background:#F8F7FC;border:2px solid #DAD7E6;border-radius:18px;'
                 'min-height:0;overflow:hidden;">'
-                '<div style="background:#7C5CFC;color:#FFF;display:flex;flex-direction:column;'
-                'align-items:center;justify-content:center;border-right:5px solid #171522;">'
+                '<div style="background:#6350E6;color:#FFF;display:flex;flex-direction:column;'
+                'align-items:center;justify-content:center;">'
                 f'<div style="font-size:24px;font-weight:900;letter-spacing:.08em;">{_slide_text(item.get("label", f"ACT {idx}"))}</div>'
                 f'<div style="font-size:58px;font-weight:950;line-height:1;">{idx:02d}</div>'
                 '</div>'
@@ -582,9 +644,9 @@ def _slide_inner_html(slide: dict) -> str:
             )
         tip = _slide_text(slide.get("tip", ""))
         tip_html = (
-            '<div style="margin-top:28px;background:#FFD966;border:5px solid #171522;'
-            'padding:22px 28px;font-size:28px;line-height:1.35;color:#171522;'
-            f'font-weight:700;max-height:116px;overflow:hidden;">💡 강사 포인트 · {tip}</div>'
+            '<div style="margin-top:28px;background:#FFF2DF;border:2px solid #E4B56E;border-radius:16px;'
+            'padding:22px 28px;font-size:28px;line-height:1.35;color:#5C3511;'
+            f'font-weight:700;max-height:116px;overflow:hidden;">설명할 때 확인 · {tip}</div>'
         ) if tip else ""
         inner = (
             '<div style="background:#FFF;width:100%;height:100%;padding:64px 72px 70px;'
@@ -610,12 +672,11 @@ def _slide_inner_html(slide: dict) -> str:
             )
             accent = ("#7C5CFC", "#FFD966", "#64D8CB")[idx % 3]
             boxes.append(
-                '<div style="flex:1;background:#F7F6FB;border:5px solid #171522;'
+                '<div style="flex:1;background:#F8F7FC;border:2px solid #DAD7E6;border-radius:18px;'
                 'padding:25px 32px;display:grid;grid-template-columns:130px 1fr;gap:28px;'
-                'align-items:center;min-height:0;overflow:hidden;'
-                f'box-shadow:11px 11px 0 {accent};">'
+                'align-items:center;min-height:0;overflow:hidden;">'
                 '<div style="display:flex;align-items:center;justify-content:center;width:112px;'
-                f'height:112px;background:{accent};border:5px solid #171522;font-weight:950;'
+                f'height:112px;background:{accent};border-radius:16px;font-weight:950;'
                 f'font-size:48px;color:#171522;">{idx + 1:02d}</div>'
                 '<div style="min-width:0;overflow:hidden;"><div style="font-weight:950;color:#171522;'
                 f'font-size:40px;line-height:1.1;">{_slide_text(step.get("label", ""))}</div>'
@@ -665,7 +726,7 @@ def _slide_inner_html(slide: dict) -> str:
             f'margin-bottom:10px;">{_slide_text(slide.get("section", ""))} · COMPARE</div>'
             '<div style="font-size:56px;font-weight:900;color:#171522;margin-bottom:28px;line-height:1.15;'
             f'max-height:135px;overflow:hidden;">{_slide_text(slide.get("title", ""))}</div>'
-            '<div style="flex:1;overflow:hidden;border:5px solid #171522;box-shadow:11px 11px 0 #FFD966;">'
+            '<div style="flex:1;overflow:hidden;border:2px solid #172033;border-radius:14px;">'
             f'<table style="width:100%;height:100%;table-layout:fixed;border-collapse:collapse;">'
             f'<thead><tr>{header_cells}</tr></thead>'
             f'<tbody>{body_rows}</tbody>'
@@ -713,12 +774,13 @@ def _slide_inner_html(slide: dict) -> str:
             f'{slide.get("title","")}</div>'
             '<div style="height:2px;background:#e0e0e0;margin-bottom:1.2rem;"></div>'
             '<div style="display:flex;flex-direction:column;flex:1;min-height:0;gap:1.4rem;">'
-            '<div style="flex:1;min-height:0;display:flex;flex-direction:column;">'
-            '<div style="font-weight:700;margin-bottom:0.8rem;font-size:38px;">'
+            '<div style="flex:1;min-height:0;display:flex;flex-direction:column;background:#F4F1FF;'
+            'border-radius:18px;padding:30px 34px;">'
+            '<div style="font-weight:800;color:#6350E6;margin-bottom:0.8rem;font-size:38px;">'
             f'{slide.get("left_label","")}</div>{left_html}</div>'
-            '<div style="height:2px;background:#e0e0e0;"></div>'
-            '<div style="flex:1;min-height:0;display:flex;flex-direction:column;">'
-            '<div style="font-weight:700;margin-bottom:0.8rem;font-size:38px;">'
+            '<div style="flex:1;min-height:0;display:flex;flex-direction:column;background:#E7F5F2;'
+            'border-radius:18px;padding:30px 34px;">'
+            '<div style="font-weight:800;color:#0D8B7D;margin-bottom:0.8rem;font-size:38px;">'
             f'{slide.get("right_label","")}</div>{right_html}</div>'
             '</div></div>'
         )
@@ -729,7 +791,7 @@ def _slide_inner_html(slide: dict) -> str:
         summary_font = 29 if len(lessons) > 8 else 33
         lessons_html = "".join(
             f'<div style="display:grid;grid-template-columns:58px 1fr;align-items:center;'
-            f'background:#FFF;border:4px solid #171522;min-height:0;overflow:hidden;">'
+            f'background:#FFF;border:1px solid #DAD7E6;border-radius:12px;min-height:0;overflow:hidden;">'
             f'<span style="height:100%;display:flex;align-items:center;justify-content:center;'
             f'font-weight:950;color:#FFF;background:#7C5CFC;font-size:28px;">{i+1:02d}</span>'
             f'<span style="padding:14px 16px;font-size:{summary_font}px;color:#171522;'
@@ -744,7 +806,7 @@ def _slide_inner_html(slide: dict) -> str:
             '<div style="font-size:25px;color:#7C5CFC;font-weight:900;letter-spacing:.08em;'
             'margin-bottom:10px;">COURSE MAP</div>'
             '<div style="font-size:62px;font-weight:950;color:#171522;margin-bottom:30px;line-height:1.1;">'
-            '배운 내용을 연결해봅시다</div>'
+            f'{_slide_text(slide.get("title", "배운 내용을 연결합니다"))}</div>'
             f'<div style="flex:1;display:grid;grid-template-columns:repeat({columns},minmax(0,1fr));'
             f'grid-auto-rows:minmax(0,1fr);gap:18px;min-height:0;">{lessons_html}</div>'
             '</div>'
@@ -985,10 +1047,10 @@ def _render_digest(digest: dict) -> None:
                 st.markdown(_escape_tilde(d["body"]))
             if d.get("question"):
                 st.markdown(
-                    '<div style="border-left:4px solid #7C5CFC;background:#F5F3FF;'
-                    'padding:0.7rem 1rem;border-radius:6px;margin:0.6rem 0;">'
-                    '<b style="color:#7C5CFC;">❔ 생각해볼 질문</b><br>'
-                    f'<span style="color:#1a1a1a;">{d["question"]}</span></div>',
+                    '<div style="border:1px solid var(--hairline);background:var(--primary-soft);'
+                    'padding:0.7rem 1rem;border-radius:10px;margin:0.6rem 0;">'
+                    '<b style="color:var(--primary);">생각해볼 질문</b><br>'
+                    f'<span style="color:var(--ink);">{d["question"]}</span></div>',
                     unsafe_allow_html=True,
                 )
             srcs = d.get("sources", [])
@@ -1040,19 +1102,19 @@ def _sort_items(items, mode, date_field, title_field="title"):
     return sorted(items, key=lambda x: x.get(date_field) or "", reverse=(mode == "최신순"))
 
 
-# ── 보라색 그라데이션 히어로 배너 (각 화면 상단 헤더) ──
+# ── 학습 작업실 헤더 (각 화면 상단) ────────────────────────────
 def _hero(title: str, subtitle: str = "", emoji: str = "") -> None:
-    """화면 상단에 보라 그라데이션 배너를 그린다(기존 st.title/st.caption 대체)."""
+    """현재 화면과 목적을 평면적인 편집형 헤더로 보여준다."""
+    mark = html_escape(emoji or "AI")
     sub = (
-        f'<div style="font-size:0.95rem;color:rgba(255,255,255,0.88);'
-        f'margin-top:0.4rem;line-height:1.5;">{subtitle}</div>'
+        f'<div class="page-hero__sub">{html_escape(subtitle)}</div>'
     ) if subtitle else ""
     st.markdown(
-        '<div style="background:linear-gradient(135deg,#7C5CFC 0%,#9D7BFF 100%);'
-        'border-radius:16px;padding:1.5rem 1.8rem;margin-bottom:1.3rem;'
-        'box-shadow:0 8px 24px rgba(124,92,252,0.28);">'
-        f'<div style="font-size:1.45rem;font-weight:800;color:#fff;'
-        f'letter-spacing:-0.5px;">{(emoji + " ") if emoji else ""}{title}</div>{sub}</div>',
+        '<div class="page-hero">'
+        f'<div class="page-hero__mark" aria-hidden="true">{mark}</div>'
+        '<div>'
+        f'<div class="page-hero__title">{html_escape(title)}</div>{sub}'
+        '</div></div>',
         unsafe_allow_html=True,
     )
 
@@ -1098,8 +1160,12 @@ def _render_sidebar_nav() -> None:
     하단에 다크모드 토글·새로고침·명령어·역할/로그아웃을 둔다.
     """
     with st.sidebar:
-        st.markdown('<div class="nav-brand">📚 우리의 AI 기록</div>', unsafe_allow_html=True)
-        current = st.session_state.get("nav_page", "📚 지식 베이스")
+        st.markdown(
+            '<div class="nav-brand">AIHelper<br>'
+            '<span style="font-size:.74rem;color:var(--ink-faint);font-weight:650;">학습 작업실</span></div>',
+            unsafe_allow_html=True,
+        )
+        current = st.session_state.get("nav_page", "🎓 학습 홈")
         for section, items in GROUPS.items():
             st.markdown(f'<div class="nav-section">{section}</div>', unsafe_allow_html=True)
             for label, _fn in items:
@@ -1783,6 +1849,34 @@ def _render_textbook(curriculum, sessions, selected_week):
             st.warning("해당 강 세션을 찾을 수 없습니다.")
 
 
+def _render_lesson_brief(session: dict) -> None:
+    """공부를 시작하기 전에 결과물·목표·판정 방법을 한 화면에 고정한다."""
+    deliverables = session.get("assessment", {}).get("deliverables", [])[:2]
+    objectives = session.get("objectives", [])[:2]
+
+    def _lines(values: list[str], fallback: str) -> str:
+        if not values:
+            return html_escape(fallback)
+        return "<br>".join(f"• {html_escape(str(value))}" for value in values)
+
+    st.markdown(
+        '<div class="lesson-brief">'
+        '<div class="lesson-brief__cell">'
+        '<div class="lesson-brief__label">이번 강 결과물</div>'
+        f'<div class="lesson-brief__body">{_lines(deliverables, "실습 산출물과 검사 기록")}</div>'
+        '</div>'
+        '<div class="lesson-brief__cell">'
+        '<div class="lesson-brief__label">학습 목표</div>'
+        f'<div class="lesson-brief__body">{_lines(objectives, "핵심 원리를 설명하고 직접 적용하기")}</div>'
+        '</div>'
+        '<div class="lesson-brief__cell">'
+        '<div class="lesson-brief__label">설명·판정 순서</div>'
+        '<div class="lesson-brief__body">원리 이해 → 쉬운 예시 → 3단계 실습 → 퀴즈·체크</div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
 # ── 탭 4: 커리큘럼 ─────────────────────────────────────────────
 def render_curriculum():
     # ── session_state 초기화 ────────────────────────────────────
@@ -2038,6 +2132,8 @@ def render_curriculum():
                     st.caption("⛶ 전체화면 버튼 또는 ← → 화살표 키로 넘길 수 있어요.")
                     _render_slide_deck(all_slides, height=960)
         else:
+            if _cur_ses:
+                _render_lesson_brief(_cur_ses)
             # ── 개별 강(공부 모드): 교재 | 슬라이드 2열, 고정 높이로 페이지 스크롤 최소화 ──
             # 교재:슬라이드 = 6:4 (교재를 더 넓게 — 슬라이드가 과도하게 커지지 않게)
             tab_doc, tab_slides = st.columns([6, 4])
@@ -2439,18 +2535,124 @@ def render_tips():
                                 st.rerun()
 
 
-# ── 탭: 실습·체크 ──────────────────────────────────────────────
+# ── 탭: 학습 홈 · 실습·체크 ────────────────────────────────────
+PHASE4_COURSE_ID = "cur_phase4_14_domain_foundations"
+
+LEARNING_TRACKS = (
+    {
+        "title": "만들기",
+        "code": "BUILD",
+        "description": "웹사이트, 게임, 앱을 작은 작동 결과물부터 설계합니다.",
+        "categories": ("프론트엔드", "게임 개발", "앱 개발"),
+    },
+    {
+        "title": "알리기·성장",
+        "code": "GROW",
+        "description": "마케팅, SNS, 영업, 검색 유입을 측정 가능한 흐름으로 연결합니다.",
+        "categories": ("마케팅·성장", "SNS·콘텐츠", "영업", "SEO·GEO"),
+    },
+    {
+        "title": "가르치기·언어",
+        "code": "TEACH",
+        "description": "강의, 언어 학습, 한국어 첨삭을 수행 증거 중심으로 설계합니다.",
+        "categories": ("강의·교육", "언어 학습", "한국어 첨삭"),
+    },
+    {
+        "title": "검증·운영",
+        "code": "OPERATE",
+        "description": "AI 품질, 권한, 프로젝트 완료, 지식 축적을 검증 가능한 상태로 관리합니다.",
+        "categories": ("평가·품질", "안전·권한", "프로젝트 운영", "Second Brain"),
+    },
+)
+
+
+def _open_phase4_lesson(week: int) -> None:
+    """학습 홈이나 실습 화면에서 Phase 4의 특정 강 공부 모드로 이동한다."""
+    st.session_state["cur_selected_id"] = PHASE4_COURSE_ID
+    st.session_state["cur_selected_week"] = week
+    st.session_state["nav_page"] = "📋 커리큘럼"
+    st.rerun()
+
+
+def _learning_map_banner(items: list[dict]) -> None:
+    cells = "".join(
+        f'<div class="learning-map__cell" title="{html_escape(item.get("title", ""))}">'
+        f'{int(item.get("order", 0)):02d}</div>'
+        for item in items
+    )
+    st.markdown(
+        '<div class="learning-map">'
+        '<div class="learning-map__label">14-DOMAIN LEARNING MAP</div>'
+        '<div class="learning-map__title">원리를 읽고, 예시를 본 뒤, 직접 만들고, 기준으로 통과합니다.</div>'
+        f'<div class="learning-map__rail" role="list" aria-label="14개 학습 주제">{cells}</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_learning_home():
+    _hero(
+        "학습 홈",
+        "게임 개발, 마케팅, SNS, 강의, 웹·앱, 언어 프로그램을 결과물 중심으로 배웁니다.",
+        "14",
+    )
+    db = load_learning_assets_db()
+    items = sorted(db.get("items", []), key=lambda item: item.get("order", 999))
+    if not items:
+        st.info("학습 자료가 없습니다. Phase 4 학습 자료를 먼저 생성하세요.")
+        return
+
+    _learning_map_banner(items)
+    _learning_flow_rail()
+
+    st.markdown("### 만들고 싶은 결과에서 시작하세요")
+    st.caption("처음부터 순서대로 들어도 되고, 필요한 분야를 먼저 선택해도 됩니다.")
+
+    track_columns = st.columns(2)
+    for track_index, track in enumerate(LEARNING_TRACKS):
+        track_items = [
+            item for item in items if item.get("category") in track["categories"]
+        ]
+        with track_columns[track_index % 2]:
+            with st.container(border=True):
+                st.markdown(
+                    f'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;">'
+                    f'<div style="font-size:1.08rem;font-weight:850;color:var(--ink);">'
+                    f'{html_escape(track["title"])}</div>'
+                    f'<div style="font-size:.72rem;font-weight:850;color:var(--primary);">'
+                    f'{html_escape(track["code"])}</div></div>',
+                    unsafe_allow_html=True,
+                )
+                st.caption(track["description"])
+                for item in track_items:
+                    label = f'{int(item.get("order", 0)):02d}강 · {item.get("category", "")} · {item["title"]}'
+                    if st.button(
+                        label,
+                        key=f'home_lesson_{item["id"]}',
+                        use_container_width=True,
+                    ):
+                        _open_phase4_lesson(int(item.get("order", 0)))
+
+    st.caption(
+        "강의 예시는 학습용 예시입니다. 실제 프로젝트 적용 완료 여부는 원본·빌드·운영 상태를 확인한 뒤 별도로 판단합니다."
+    )
+
+
 def _learning_flow_rail() -> None:
     """Show the four-step learning contract as the page's signature element."""
-    labels = (("01", "배우기", "원리와 경계"), ("02", "예시", "입력부터 결과까지"),
-              ("03", "해보기", "직접 산출물 만들기"), ("04", "통과", "퀴즈와 체크"))
+    labels = (
+        ("01", "배우기", "원리와 경계", "var(--primary)", "var(--primary-soft)"),
+        ("02", "예시", "입력부터 결과까지", "var(--primary)", "var(--primary-soft)"),
+        ("03", "해보기", "직접 산출물 만들기", "var(--practice)", "var(--practice-soft)"),
+        ("04", "통과", "퀴즈와 체크", "var(--check)", "var(--check-soft)"),
+    )
     cards = "".join(
-        '<div role="listitem" style="background:var(--surface);border:1px solid var(--hairline);'
-        'border-top:5px solid var(--primary);border-radius:12px;padding:0.75rem 0.85rem;min-width:0;">'
-        f'<div style="font-size:0.7rem;font-weight:800;color:var(--primary);">STEP {number}</div>'
+        f'<div role="listitem" style="background:{background};border:1px solid var(--hairline);'
+        'border-radius:12px;padding:0.75rem 0.85rem;min-width:0;">'
+        f'<div style="font-size:0.7rem;font-weight:800;color:{color};">STEP {number}</div>'
         f'<div style="font-size:1rem;font-weight:800;color:var(--ink);margin-top:0.15rem;">{title}</div>'
         f'<div style="font-size:0.76rem;color:var(--ink-muted);margin-top:0.2rem;">{caption}</div></div>'
-        for number, title, caption in labels
+        for number, title, caption, color, background in labels
     )
     st.markdown(
         '<div role="list" aria-label="학습 순서" style="display:grid;'
@@ -2485,8 +2687,18 @@ def render_learning_lab():
         )
     asset = next(item for item in filtered if item["id"] == selected_id)
 
-    st.markdown(f"### {asset['title']}")
-    st.caption(f"{asset.get('part', '')} · {asset.get('category', '')} · {asset.get('status', '')}")
+    title_col, action_col = st.columns([3, 1])
+    with title_col:
+        st.markdown(f"### {asset['title']}")
+        st.caption(f"{asset.get('part', '')} · {asset.get('category', '')} · {asset.get('status', '')}")
+    with action_col:
+        if st.button(
+            "교재·슬라이드 보기 →",
+            key=f"open_course_from_lab_{asset['id']}",
+            use_container_width=True,
+            type="primary",
+        ):
+            _open_phase4_lesson(int(asset.get("order", 0)))
     _learning_flow_rail()
 
     learn_tab, example_tab, practice_tab, pass_tab = st.tabs(
@@ -2619,6 +2831,7 @@ AI 기초 커리큘럼 만들어줘    → 커리큘럼 에이전트가 생성
 # ── 좌측 세로 네비 메뉴 정의 (섹션 → 항목) ────────────────────────
 GROUPS = {
     "지식·학습": [
+        ("🎓 학습 홈", render_learning_home),
         ("📚 지식 베이스", render_kb),
         ("📰 최근 뉴스", render_news),
         ("📋 커리큘럼", render_curriculum),
@@ -2646,5 +2859,5 @@ if st.session_state.get("cur_selected_id"):
     render_curriculum()
 else:
     _render_sidebar_nav()
-    _page = st.session_state.get("nav_page", "📚 지식 베이스")
-    PAGES.get(_page, render_kb)()
+    _page = st.session_state.get("nav_page", "🎓 학습 홈")
+    PAGES.get(_page, render_learning_home)()

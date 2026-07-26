@@ -148,12 +148,13 @@ def build_slides_data(curriculum: dict) -> list[dict]:
                     "icon": _visual_icon(clean),
                 })
         if concept_nodes:
+            concept_title = _short_sentence(ses.get("summary", ""), 44)
             slides.append({
                 "slide_number": slide_num,
                 "type": "visual_map",
                 "week": week_no,
                 "section": week_label,
-                "title": "핵심 개념 한눈에",
+                "title": concept_title or "핵심 개념은 세 가지로 연결됩니다",
                 "nodes": concept_nodes[:3],
             })
             slide_num += 1
@@ -188,7 +189,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
             "type": "flow",
             "week": week_no,
             "section": week_label,
-            "title": "이번 강 한눈에",
+            "title": "결과물은 이 순서로 만듭니다",
             "steps": steps,
         })
         slide_num += 1
@@ -214,7 +215,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
                 "type": "comparison",
                 "week": week_no,
                 "section": week_label,
-                "title": "작업 예시",
+                "title": _truncate_at_word(example.get("title", "작업 예시"), 40),
                 "left_label": "상황·입력",
                 "left_items": [
                     _short_sentence(example.get("scenario", ""), 72),
@@ -235,7 +236,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
                 "type": "practice",
                 "week": week_no,
                 "section": week_label,
-                "title": "직접 해보기",
+                "title": "이제 직접 산출물을 만듭니다",
                 "items": [
                     {
                         "label": f"ACT {i}",
@@ -266,7 +267,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
                 "type": "cards",
                 "week": week_no,
                 "section": week_label,
-                "title": "통과 기준",
+                "title": "이 증거가 있어야 통과입니다",
                 "items": pass_items[:3],
                 "variant": "number",
             })
@@ -294,7 +295,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
         slides.append({
             "slide_number": slide_num,
             "type": "summary",
-            "title": "전체 과정 요약",
+            "title": "14개 분야를 실제 결과물로 연결합니다",
             "lessons": all_weeks[start:start + 12],
             "source": curriculum.get("description", "AI 교육팀"),
         })
