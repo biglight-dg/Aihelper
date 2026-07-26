@@ -13,6 +13,20 @@ TIPS_REL = "ai_tips.json"
 
 # 카테고리 표준값 (자유 입력도 허용하되 UI 기본 분류로 사용)
 TIP_CATEGORIES = [
+    "평가·품질",
+    "안전·권한",
+    "프론트엔드",
+    "마케팅·성장",
+    "SNS·콘텐츠",
+    "게임 개발",
+    "강의·교육",
+    "언어 학습",
+    "한국어 첨삭",
+    "앱 개발",
+    "프로젝트 운영",
+    "영업",
+    "SEO·GEO",
+    "Second Brain",
     "Codex",
     "Claude Code",  # legacy records from pre-Codex installations
     "프롬프트",

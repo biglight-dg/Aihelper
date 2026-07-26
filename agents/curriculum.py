@@ -5,8 +5,8 @@ build_doc_content()  → 교재용 Markdown (완전한 문장, 교재 어투)
 """
 
 import re
-from pathlib import Path
 
+from tools import storage
 from tools.curriculum_tools import (
     build_markdown_doc, load_curriculum, load_curriculum_db, save_slides,
 )
@@ -161,14 +161,12 @@ def build_slides_data(curriculum: dict) -> list[dict]:
         # 지식 파일에서 가장 유용한 표 1개만 수집한다.
         session_tables: list[dict] = []
         for ref_path in ses.get("knowledge_refs", []):
-            path = Path(ref_path)
-            if not path.exists():
-                path = Path(__file__).parent.parent / ref_path
-            if not path.exists():
+            rel = storage.to_relpath(ref_path)
+            text = storage.read_text(rel)
+            if text is None:
                 continue
-            text = path.read_text(encoding="utf-8")
             for tbl in _extract_tables_from_md(text):
-                key = (str(path), tbl["title"])
+                key = (rel, tbl["title"])
                 if key in seen_tables or len(session_tables) >= 1:
                     continue
                 seen_tables.add(key)
@@ -208,6 +206,28 @@ def build_slides_data(curriculum: dict) -> list[dict]:
             })
             slide_num += 1
 
+        # 완성 예시: 상황·입력과 처리·결과를 한 장에서 비교한다.
+        example = ses.get("worked_example", {})
+        if example:
+            slides.append({
+                "slide_number": slide_num,
+                "type": "comparison",
+                "week": week_no,
+                "section": week_label,
+                "title": "작업 예시",
+                "left_label": "상황·입력",
+                "left_items": [
+                    _short_sentence(example.get("scenario", ""), 72),
+                    _short_sentence(example.get("input", ""), 72),
+                ],
+                "right_label": "처리·결과",
+                "right_items": [
+                    _short_sentence(example.get("process", ""), 72),
+                    _short_sentence(example.get("output", ""), 72),
+                ],
+            })
+            slide_num += 1
+
         # 활동 — 수업에서 바로 쓰는 실습 카드
         if ses.get("activities"):
             slides.append({
@@ -224,6 +244,31 @@ def build_slides_data(curriculum: dict) -> list[dict]:
                     for i, activity in enumerate(ses["activities"][:3], 1)
                 ],
                 "tip": _short_sentence(ses.get("notes", ""), 92),
+            })
+            slide_num += 1
+
+        # 통과 기준: 산출물과 hard stop을 별도 카드로 보여준다.
+        assessment = ses.get("assessment", {})
+        pass_items = [
+            _flow_item(item, 52)
+            for item in assessment.get("deliverables", [])[:2]
+        ]
+        hard_stops = assessment.get("hard_stops", [])
+        if hard_stops:
+            hard_stop = hard_stops[0]
+            if isinstance(hard_stop, dict):
+                hard_stop = hard_stop.get("text", "")
+            if hard_stop:
+                pass_items.append("중단: " + _flow_item(str(hard_stop), 46))
+        if pass_items:
+            slides.append({
+                "slide_number": slide_num,
+                "type": "cards",
+                "week": week_no,
+                "section": week_label,
+                "title": "통과 기준",
+                "items": pass_items[:3],
+                "variant": "number",
             })
             slide_num += 1
 
@@ -245,12 +290,15 @@ def build_slides_data(curriculum: dict) -> list[dict]:
         _truncate_at_word(f"{s['week']}강 · {s['title']}", 46)
         for s in sessions
     ]
-    slides.append({
-        "slide_number": slide_num,
-        "type": "summary",
-        "lessons": all_weeks,
-        "source": curriculum.get("description", "AI 교육팀"),
-    })
+    for start in range(0, len(all_weeks), 12):
+        slides.append({
+            "slide_number": slide_num,
+            "type": "summary",
+            "title": "전체 과정 요약",
+            "lessons": all_weeks[start:start + 12],
+            "source": curriculum.get("description", "AI 교육팀"),
+        })
+        slide_num += 1
 
     return slides
 

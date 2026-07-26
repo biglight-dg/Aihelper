@@ -22,6 +22,7 @@ from tools.aux_tools import (
 from tools.tips_tools import (
     load_tips_db, add_tip, delete_tip, TIP_CATEGORIES,
 )
+from tools.learning_tools import load_learning_assets_db
 from agents.curator import Curator
 from agents.qa import QA
 
@@ -47,6 +48,7 @@ load_news = st.cache_data(ttl=_CACHE_TTL, show_spinner=False)(load_news)
 load_curriculum_db = st.cache_data(ttl=_CACHE_TTL, show_spinner=False)(load_curriculum_db)
 load_curriculum = st.cache_data(ttl=_CACHE_TTL, show_spinner=False)(load_curriculum)
 load_aux_db = st.cache_data(ttl=_CACHE_TTL, show_spinner=False)(load_aux_db)
+load_learning_assets_db = st.cache_data(ttl=_CACHE_TTL, show_spinner=False)(load_learning_assets_db)
 
 
 def _refresh_data() -> None:
@@ -1519,13 +1521,26 @@ def render_kb():
     else:
         all_tags = sorted({tag for item in items for tag in item.get("tags", [])})
 
-        col_search, col_tag, col_sort = st.columns([2, 1, 1])
+        artifact_types = sorted({item.get("artifact_type", "knowledge") for item in items})
+        type_labels = {
+            "knowledge": "지식 패키지",
+            "tip": "꿀팁 원문",
+            "checklist": "체크리스트",
+        }
+        col_search, col_tag, col_type, col_sort = st.columns([2, 1, 1, 1])
         with col_search:
             query = st.text_input(
                 "🔍 제목·태그 검색", placeholder="키워드 입력 (예: ChatGPT, 프롬프트)", key="kb_search"
             )
         with col_tag:
             selected_tag = st.selectbox("태그 필터", ["전체"] + all_tags, key="kb_tag")
+        with col_type:
+            selected_type = st.selectbox(
+                "자료 유형",
+                ["전체"] + artifact_types,
+                format_func=lambda value: type_labels.get(value, value),
+                key="kb_type",
+            )
         with col_sort:
             sort_mode = st.selectbox("정렬", ["최신순", "오래된순", "제목순"], key="kb_sort")
 
@@ -1533,6 +1548,8 @@ def render_kb():
         base = Curator().search(query.strip()) if query.strip() else items
         # 태그 필터 AND 결합
         filtered = base if selected_tag == "전체" else [i for i in base if selected_tag in i.get("tags", [])]
+        if selected_type != "전체":
+            filtered = [i for i in filtered if i.get("artifact_type", "knowledge") == selected_type]
         # 정렬(생성일/제목) — reversed 루프 대신 명시적 정렬
         filtered = _sort_items(filtered, sort_mode, "created_at")
 
@@ -2244,6 +2261,20 @@ def render_aux():
 # ── 탭: AI 꿀팁 ────────────────────────────────────────────────
 # 카테고리별 아이콘 (카드/섹션 헤더 시각 구분용). 미정의 분류는 💡 폴백.
 _TIP_CAT_EMOJI = {
+    "평가·품질": "✅",
+    "안전·권한": "🛡️",
+    "프론트엔드": "🧱",
+    "마케팅·성장": "📈",
+    "SNS·콘텐츠": "📣",
+    "게임 개발": "🎮",
+    "강의·교육": "🧑‍🏫",
+    "언어 학습": "🗣️",
+    "한국어 첨삭": "📝",
+    "앱 개발": "📱",
+    "프로젝트 운영": "🧭",
+    "영업": "🤝",
+    "SEO·GEO": "🔎",
+    "Second Brain": "🧠",
     "Codex": "🤖",
     "Claude Code": "🤖",  # legacy records
     "프롬프트": "✍️",
@@ -2408,6 +2439,136 @@ def render_tips():
                                 st.rerun()
 
 
+# ── 탭: 실습·체크 ──────────────────────────────────────────────
+def _learning_flow_rail() -> None:
+    """Show the four-step learning contract as the page's signature element."""
+    labels = (("01", "배우기", "원리와 경계"), ("02", "예시", "입력부터 결과까지"),
+              ("03", "해보기", "직접 산출물 만들기"), ("04", "통과", "퀴즈와 체크"))
+    cards = "".join(
+        '<div role="listitem" style="background:var(--surface);border:1px solid var(--hairline);'
+        'border-top:5px solid var(--primary);border-radius:12px;padding:0.75rem 0.85rem;min-width:0;">'
+        f'<div style="font-size:0.7rem;font-weight:800;color:var(--primary);">STEP {number}</div>'
+        f'<div style="font-size:1rem;font-weight:800;color:var(--ink);margin-top:0.15rem;">{title}</div>'
+        f'<div style="font-size:0.76rem;color:var(--ink-muted);margin-top:0.2rem;">{caption}</div></div>'
+        for number, title, caption in labels
+    )
+    st.markdown(
+        '<div role="list" aria-label="학습 순서" style="display:grid;'
+        f'grid-template-columns:repeat(4,minmax(0,1fr));gap:0.65rem;margin:0.25rem 0 1rem;">{cards}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_learning_lab():
+    _hero("실습·체크", "14개 분야를 예시, 실습, 퀴즈, 통과 기준으로 학습합니다.", "🧪")
+    db = load_learning_assets_db()
+    items = sorted(db.get("items", []), key=lambda item: item.get("order", 999))
+    if not items:
+        st.info("아직 실습 자료가 없습니다. Phase 4 학습 자료 생성 작업을 먼저 실행하세요.")
+        return
+
+    search_col, select_col = st.columns([1, 2])
+    with search_col:
+        category_options = ["전체"] + sorted({item.get("category", "기타") for item in items})
+        selected_category = st.selectbox("분야", category_options, key="learning_category")
+    filtered = items if selected_category == "전체" else [
+        item for item in items if item.get("category") == selected_category
+    ]
+    with select_col:
+        selected_id = st.selectbox(
+            "학습 주제",
+            [item["id"] for item in filtered],
+            format_func=lambda asset_id: next(
+                f"{item.get('order', 0):02d} · {item['title']}" for item in filtered if item["id"] == asset_id
+            ),
+            key="learning_asset_id",
+        )
+    asset = next(item for item in filtered if item["id"] == selected_id)
+
+    st.markdown(f"### {asset['title']}")
+    st.caption(f"{asset.get('part', '')} · {asset.get('category', '')} · {asset.get('status', '')}")
+    _learning_flow_rail()
+
+    learn_tab, example_tab, practice_tab, pass_tab = st.tabs(
+        ["1 · 배우기", "2 · 예시", "3 · 해보기", "4 · 통과"]
+    )
+    with learn_tab:
+        st.markdown(asset.get("summary", ""))
+        st.markdown("#### 학습 목표")
+        for objective in asset.get("objectives", []):
+            st.markdown(f"- {objective}")
+        st.markdown("#### 핵심 개념")
+        concept_cols = st.columns(3)
+        for index, concept in enumerate(asset.get("concepts", [])[:3]):
+            with concept_cols[index]:
+                with st.container(border=True):
+                    st.markdown(f"**{concept.get('term', '')}**")
+                    st.write(concept.get("explain", ""))
+                    if concept.get("analogy"):
+                        st.caption("예: " + concept["analogy"])
+
+    with example_tab:
+        example = asset.get("worked_example", {})
+        st.markdown(f"#### {example.get('title', '작업 예시')}")
+        for label, key in (("상황", "scenario"), ("입력", "input"),
+                           ("처리", "process"), ("결과", "output")):
+            value = example.get(key, "")
+            if value:
+                st.markdown(f"**{label}**")
+                st.write(value)
+        tip = asset.get("tip", {})
+        if tip:
+            st.info(f"{tip.get('title', '')}\n\n{tip.get('body', '')}")
+
+    with practice_tab:
+        practice = asset.get("practice", {})
+        st.markdown("#### 실습 순서")
+        for index, activity in enumerate(practice.get("activities", []), 1):
+            st.markdown(f"**{index}. {activity}**")
+        deliverables = practice.get("deliverables", [])
+        if deliverables:
+            st.markdown("#### 제출할 산출물")
+            for deliverable in deliverables:
+                st.markdown(f"- {deliverable}")
+        if practice.get("rubric_markdown"):
+            with st.expander("평가표 보기"):
+                st.markdown(practice["rubric_markdown"])
+
+    with pass_tab:
+        assessment = asset.get("assessment", {})
+        st.markdown("#### 확인 문제")
+        for index, quiz in enumerate(assessment.get("quiz", []), 1):
+            st.markdown(f"**{index}. {quiz.get('question', '')}**")
+            with st.expander(f"{index}번 답안 기준"):
+                st.write(quiz.get("answer_guide", ""))
+
+        grouped: dict[str, list[str]] = {}
+        for item in assessment.get("checklist_items", []):
+            grouped.setdefault(item.get("group", "체크"), []).append(item.get("text", ""))
+        st.markdown("#### 실행 체크리스트")
+        for group, checks in grouped.items():
+            with st.expander(group, expanded=False):
+                for check_index, check in enumerate(checks):
+                    st.checkbox(
+                        check,
+                        key=f"learning_check_{asset['id']}_{group}_{check_index}",
+                    )
+
+        hard_stops = assessment.get("hard_stops", [])
+        if hard_stops:
+            st.markdown("#### 즉시 중단 조건")
+            for item in hard_stops:
+                st.error(item.get("text", str(item)), icon="⛔")
+
+    sources = asset.get("source_artifacts", {})
+    if sources:
+        st.caption(
+            "근거 문서 · " + " · ".join(
+                f"{value.get('id')}: {value.get('path')}" for value in sources.values()
+            )
+        )
+
+
 # ── 탭 6: 에이전트 ─────────────────────────────────────────────
 def render_agents():
     _hero("에이전트 현황",
@@ -2461,6 +2622,7 @@ GROUPS = {
         ("📚 지식 베이스", render_kb),
         ("📰 최근 뉴스", render_news),
         ("📋 커리큘럼", render_curriculum),
+        ("🧪 실습·체크", render_learning_lab),
         ("💡 AI 꿀팁", render_tips),
         ("🧰 보조 프로그램", render_aux),
     ],

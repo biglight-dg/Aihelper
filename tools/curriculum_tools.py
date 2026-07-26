@@ -129,8 +129,13 @@ def new_session(week: int, title: str, objectives: list[str] | None = None,
         "objectives": objectives or [],
         "duration": duration,
         "knowledge_refs": [],
+        "tip_refs": [],
+        "checklist_refs": [],
         "references": [],
         "cross_refs": [],
+        "concepts": [],
+        "worked_example": {},
+        "assessment": {},
         "activities": [],
         "notes": "",
     }
@@ -165,8 +170,8 @@ def remove_session(curriculum: dict, week: int, renumber: bool = True) -> bool:
 
 
 # 강을 쪼갤 때 새 강으로 재배분되는 리스트형 필드(교재 .md는 건드리지 않음)
-_SPLIT_FIELDS = ("knowledge_refs", "objectives", "concepts",
-                 "activities", "references", "cross_refs")
+_SPLIT_FIELDS = ("knowledge_refs", "tip_refs", "checklist_refs", "objectives",
+                 "concepts", "activities", "references", "cross_refs")
 
 
 def split_session(curriculum: dict, week: int, parts: list[dict]) -> dict:
@@ -393,6 +398,117 @@ def _cross_refs_md(cross_refs: list[dict]) -> list[str]:
     return lines
 
 
+def _strip_frontmatter(content: str) -> str:
+    """Remove YAML frontmatter before embedding a source note in a textbook."""
+    lines = content.lstrip("\ufeff").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return content
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            return "\n".join(lines[index + 1:]).lstrip()
+    return content
+
+
+def _embedded_refs_md(ref_paths: list[str], heading: str) -> list[str]:
+    """Embed referenced Markdown with a predictable textbook heading level."""
+    lines: list[str] = []
+    seen: set[str] = set()
+    for ref_path in ref_paths:
+        rel = storage.to_relpath(ref_path)
+        if rel in seen:
+            continue
+        content = storage.read_text(rel)
+        if content is None:
+            continue
+        seen.add(rel)
+        lines += [f"### {heading}", ""]
+        for source_line in _strip_frontmatter(content).splitlines():
+            if source_line.startswith("# ") and not source_line.startswith("## "):
+                continue
+            if source_line.startswith("## "):
+                lines.append("#### " + source_line[3:])
+            elif source_line.startswith("### "):
+                lines.append("##### " + source_line[4:])
+            else:
+                lines.append(source_line)
+        lines.append("")
+    return lines
+
+
+def _learning_flow_md(session: dict) -> list[str]:
+    if not session.get("learning_asset_id"):
+        return []
+    return [
+        "### 학습 흐름",
+        "",
+        "> **1. 배우기 → 2. 예시 → 3. 해보기 → 4. 통과**",
+        "",
+        "각 단계의 산출물을 남기고 통과 기준을 확인한 뒤 다음 단계로 이동합니다.",
+        "",
+    ]
+
+
+def _worked_example_md(example: dict) -> list[str]:
+    if not example:
+        return []
+    lines = ["### 작업 예시", ""]
+    if example.get("title"):
+        lines += [f"**{example['title']}**", ""]
+    labels = (("상황", "scenario"), ("입력", "input"),
+              ("처리", "process"), ("결과", "output"))
+    for label, key in labels:
+        value = (example.get(key) or "").strip()
+        if value:
+            lines.append(f"- **{label}**: {value}")
+    lines.append("")
+    return lines
+
+
+def _assessment_md(assessment: dict) -> list[str]:
+    if not assessment:
+        return []
+    lines = ["### 통과 기준", ""]
+
+    deliverables = assessment.get("deliverables", [])
+    if deliverables:
+        lines += ["#### 제출할 산출물", ""]
+        lines += [f"- {item}" for item in deliverables]
+        lines.append("")
+
+    checklist = assessment.get("checklist_items", [])
+    if checklist:
+        lines += ["#### 실행 전·후 체크", ""]
+        for item in checklist:
+            text = item.get("text", "") if isinstance(item, dict) else str(item)
+            if text:
+                lines.append(f"- [ ] {text}")
+        lines.append("")
+
+    hard_stops = assessment.get("hard_stops", [])
+    if hard_stops:
+        lines += ["#### 즉시 중단 조건", ""]
+        for item in hard_stops:
+            text = item.get("text", "") if isinstance(item, dict) else str(item)
+            if text:
+                lines.append(f"- [ ] {text}")
+        lines.append("")
+
+    rubric = (assessment.get("rubric_markdown") or "").strip()
+    if rubric:
+        lines += ["#### 평가표", "", rubric, ""]
+
+    quiz = assessment.get("quiz", [])
+    if quiz:
+        lines += ["#### 확인 문제", ""]
+        for index, item in enumerate(quiz, 1):
+            lines.append(f"{index}. {item.get('question', '')}")
+            guide = (item.get("answer_guide") or "").strip()
+            if guide:
+                lines.append(f"   - 답안 기준: {guide}")
+        lines.append("")
+    return lines
+
+
 def build_markdown_doc(curriculum: dict) -> str:
     """커리큘럼을 교재 스타일 Markdown으로 변환한다.
 
@@ -447,6 +563,7 @@ def build_markdown_doc(curriculum: dict) -> str:
         lines.append("")
         lines.append(f"**수업 시간**: {ses.get('duration', '60분')}")
         lines.append("")
+        lines += _learning_flow_md(ses)
 
         # 학습 목표 (교재 어투)
         if ses.get("objectives"):
@@ -474,7 +591,7 @@ def build_markdown_doc(curriculum: dict) -> str:
             lines.append("")
 
             # H1 제목 제거, H2→H4, H3→H5 로 변환해서 계층 유지
-            for cl in content.splitlines():
+            for cl in _strip_frontmatter(content).splitlines():
                 if cl.startswith('# ') and not cl.startswith('## '):
                     continue  # 최상위 H1 skip
                 elif cl.startswith('## '):
@@ -484,6 +601,9 @@ def build_markdown_doc(curriculum: dict) -> str:
                 else:
                     lines.append(cl)
             lines.append("")
+
+        lines += _embedded_refs_md(ses.get("tip_refs", []), "바로 쓰는 팁")
+        lines += _worked_example_md(ses.get("worked_example", {}))
 
         # 참고 자료 (외부 영상·링크)
         lines += _references_md(ses.get("references", []))
@@ -503,6 +623,8 @@ def build_markdown_doc(curriculum: dict) -> str:
             for i, act in enumerate(ses["activities"], 1):
                 lines.append(f"**활동 {i}**: {act}")
             lines.append("")
+
+        lines += _assessment_md(ses.get("assessment", {}))
 
         if ses.get("notes"):
             lines.append(f"> **강사 노트**: {ses['notes']}")
@@ -529,6 +651,7 @@ def build_session_doc(curriculum: dict, session: dict) -> str:
         f"**전체 {total_weeks}강 중 {week}강**",
         "",
     ]
+    lines += _learning_flow_md(session)
 
     # ── 소개 단락 ──────────────────────────────────────────────────
     lines += [
@@ -565,7 +688,7 @@ def build_session_doc(curriculum: dict, session: dict) -> str:
 
         lines += ["### 핵심 학습 내용", ""]
 
-        for cl in content.splitlines():
+        for cl in _strip_frontmatter(content).splitlines():
             if cl.startswith("# ") and not cl.startswith("## "):
                 continue
             elif cl.startswith("## "):
@@ -575,6 +698,9 @@ def build_session_doc(curriculum: dict, session: dict) -> str:
             else:
                 lines.append(cl)
         lines.append("")
+
+    lines += _embedded_refs_md(session.get("tip_refs", []), "바로 쓰는 팁")
+    lines += _worked_example_md(session.get("worked_example", {}))
 
     # ── 참고 자료 (외부 영상·링크) ─────────────────────────────────
     lines += _references_md(session.get("references", []))
@@ -601,10 +727,8 @@ def build_session_doc(curriculum: dict, session: dict) -> str:
         lines += [
             "### 실습 안내",
             "",
-            (f"이론을 배웠다면 이제 직접 해볼 차례입니다. "
-             f"총 {len(session['activities'])}개의 실습 활동이 있으며, "
-             "순서대로 진행하는 것을 권장합니다. "
-             "처음에는 잘 안 되더라도 괜찮습니다 — 반복이 실력을 만듭니다."),
+            (f"총 {len(session['activities'])}개의 실습 활동을 순서대로 진행합니다. "
+             "각 활동의 산출물을 저장하고 다음 활동의 입력으로 사용합니다."),
             "",
         ]
         for i, act in enumerate(session["activities"], 1):
@@ -614,6 +738,8 @@ def build_session_doc(curriculum: dict, session: dict) -> str:
                 _make_activity_guide(i, act),
                 "",
             ]
+
+    lines += _assessment_md(session.get("assessment", {}))
 
     if session.get("notes"):
         lines += [f"> **강사 노트**: {session['notes']}", ""]
@@ -625,41 +751,16 @@ def build_session_doc(curriculum: dict, session: dict) -> str:
 
 def _make_intro(week: int, title: str, session: dict) -> str:
     """세션 제목과 목표를 바탕으로 소개 단락을 생성한다."""
-    obj_preview = ""
-    objs = session.get("objectives", [])
-    if objs:
-        obj_preview = f" 특히 **{objs[0].split('(')[0].strip()}**를 중심으로 배웁니다."
-
-    templates = {
-        1: (f"AI 도구를 처음 배울 때 가장 중요한 것은 '어떻게 말을 걸어야 하는가' 입니다. "
-            f"이번 {week}강에서는 **{title}**를 다루며,{obj_preview} "
-            "마치 사진작가에게 촬영 지시를 내리듯, AI에게 원하는 결과를 "
-            "정확히 요청하는 방법을 익히게 됩니다. "
-            "처음에는 낯설게 느껴질 수 있지만, "
-            "5단계 공식을 한 번 익히고 나면 어떤 이미지도 만들 수 있다는 자신감이 생깁니다."),
-        2: (f"이번 {week}강에서는 **{title}**를 배웁니다.{obj_preview} "
-            "지난 강에서 이미지를 만드는 법을 배웠다면, "
-            "이번에는 나만의 캐릭터를 만들고 다양한 상황에 적용하는 방법을 익힙니다. "
-            "광고 소재, SNS 콘텐츠, 교육 자료 등 실제 업무에 바로 쓸 수 있는 기술입니다."),
-        3: (f"이번 {week}강에서는 **{title}**를 배웁니다.{obj_preview} "
-            "정지 이미지를 만드는 것에서 한 발 나아가, "
-            "이제 이미지를 움직이는 영상으로 만드는 전체 흐름을 이해합니다. "
-            "스토리보드 9장을 만들고 나면, 30초짜리 미니 광고를 제작할 준비가 됩니다."),
-        4: (f"이번 {week}강에서는 **{title}**를 배웁니다.{obj_preview} "
-            "Kling AI는 현재 가장 많이 쓰이는 AI 영상 생성 도구 중 하나입니다. "
-            "5칸 공식을 외워두면 어떤 씬이든 빠르게 프롬프트를 작성할 수 있습니다. "
-            "직접 4가지 씬을 만들어보면서 공식이 자연스럽게 몸에 익도록 합니다."),
-        5: (f"드디어 마지막 {week}강, **{title}**입니다.{obj_preview} "
-            "지금까지 만든 이미지와 영상 클립들을 하나의 완성된 영상으로 엮는 시간입니다. "
-            "CapCut의 타임라인 편집은 처음 보면 복잡해 보이지만, "
-            "기본 기능 3가지(트랜지션, 자막, BGM)만 알면 충분합니다. "
-            "이번 강이 끝나면 나만의 15~30초 영상을 완성하게 됩니다."),
-    }
-    return templates.get(
-        week,
-        (f"이번 {week}강에서는 **{title}**를 다룹니다.{obj_preview} "
-         "아래 핵심 내용을 차근차근 읽고, 실습을 통해 직접 익혀보시기 바랍니다."),
+    summary = (session.get("summary") or "").strip()
+    first_objective = next(iter(session.get("objectives", [])), "")
+    objective_line = (
+        f"첫 번째 목표는 **{first_objective}**입니다. " if first_objective else ""
     )
+    summary_line = summary if summary else f"{title}의 기본 구조와 적용 순서를 다룹니다."
+    return (
+        f"이번 {week}강에서는 **{title}**를 다룹니다. {summary_line} "
+        f"{objective_line}설명, 작업 예시, 직접 실습, 통과 기준의 순서로 진행합니다."
+    ).strip()
 
 
 def _objective_to_question(objective: str) -> str:
@@ -677,16 +778,14 @@ def _objective_to_question(objective: str) -> str:
 
 
 def _make_activity_guide(index: int, activity: str) -> str:
-    """실습 활동에 친절한 안내 문구를 추가한다."""
+    """실습 활동에 단계별 검증 안내를 추가한다."""
     guides = {
-        1: ("먼저 배운 내용을 떠올리며 직접 시도해보세요. "
-            "정답이 없는 실습입니다 — 내가 원하는 결과를 만드는 것이 목표입니다."),
-        2: ("앞 활동의 결과를 바탕으로 진행합니다. "
-            "잘 안 되는 부분이 있으면 강사에게 질문하거나 "
-            "다시 핵심 내용 섹션을 참고해 보세요."),
-        3: ("이번 활동은 지금까지 배운 내용을 통합하는 단계입니다. "
-            "시간 안에 완성하지 못해도 괜찮습니다 — "
-            "어디서 막혔는지 기록해 두면 이후 복습에 도움이 됩니다."),
+        1: ("산출물의 이름과 형식을 먼저 정한 뒤 작업합니다. "
+            "완료 시 사용한 입력과 결과를 함께 저장합니다."),
+        2: ("앞 활동의 산출물을 입력으로 사용합니다. "
+            "핵심 내용의 계약과 누락 항목을 비교합니다."),
+        3: ("통과 기준과 hard stop을 적용합니다. "
+            "통과하지 못한 항목과 다음 수정 한 가지를 기록합니다."),
     }
-    guide = guides.get(index, "직접 실행해보면서 익혀보세요.")
+    guide = guides.get(index, "산출물과 검증 결과를 함께 기록합니다.")
     return f"> {guide}"

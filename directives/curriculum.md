@@ -44,3 +44,15 @@
 - `save_curriculum(curriculum)` 호출 확인 (updated_at 자동 갱신)
 - 변경 내용 요약 출력
 - 슬라이드가 오래됐으면 "슬라이드 업데이트가 필요합니다." 안내
+
+## 구조화 학습 자료가 연결된 강
+
+Phase 4처럼 `learning_asset_id`가 있는 세션은 일반 세션 필드에 아래 계약을 추가한다.
+
+- `tip_refs`: 바로 쓰는 팁 Markdown 경로
+- `checklist_refs`: 실행 전·후 checklist Markdown 경로
+- `worked_example`: 상황·입력·처리·결과가 있는 예시
+- `assessment`: 제출물·rubric·확인 문제·checklist·hard stop
+
+이 세션을 수정할 때는 `directives/phase4-learning-assets.md`를 함께 읽고,
+`KPK/TIP/CHK` ID와 원문 경로를 보존한 채 슬라이드와 `learning_assets.json`을 같이 재검증한다.

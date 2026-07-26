@@ -89,7 +89,7 @@ class Educator:
         maker = PptxMaker(title=title)
         maker.add_title_slide(title, subtitle)
 
-        summary_slide = None
+        summary_slides = []
         for slide in slides:
             stype = slide.get("type", "content")
             if stype == "title":
@@ -153,13 +153,14 @@ class Educator:
                     slide.get("section", ""),
                 )
             elif stype == "summary":
-                summary_slide = slide
+                summary_slides.append(slide)
 
-        if summary_slide:
-            maker.add_summary_slide(
-                summary_slide.get("lessons", []),
-                source or summary_slide.get("source", ""),
-            )
+        if summary_slides:
+            for summary_slide in summary_slides:
+                maker.add_summary_slide(
+                    summary_slide.get("lessons", []),
+                    source or summary_slide.get("source", ""),
+                )
         else:
             maker.add_summary_slide(["핵심 내용을 직접 정리해보세요."], source)
 

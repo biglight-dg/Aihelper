@@ -257,13 +257,24 @@ Codex가 교육자 역할로 Canva MCP를 사용해 슬라이드를 생성한다
    분할 시 교재 본문(.md)은 한 글자도 줄이지 않고 강 사이에 **재배분만** 한다(`split_session`).
    강을 잘게 나누면 강당 슬라이드·교재가 짧아져 학습 화면에서 슬라이드와 교재를 1:1로 대조하기 쉬워진다.
 
+### Phase 4 학습 자료 배포
+
+Phase 4의 검증된 42개 원문을 14강 과정·팁·실습·퀴즈·체크리스트로 갱신할 때는
+`directives/phase4-learning-assets.md`와 `skills/aihelper-learning-publisher/SKILL.md`를 먼저 읽는다.
+
+- 기본 순서는 `배우기 → 예시 → 해보기 → 통과`다.
+- 원문 `KPK/TIP/CHK` 경로와 ID를 생성 데이터에 보존한다.
+- `scripts/build_phase4_learning_assets.py`는 dry-run이 기본이며 격리 fixture 검증 뒤에만 `--apply`한다.
+- 실제 프로젝트 원본·build·운영 상태를 관찰하지 않은 teaching fixture는 프로젝트 적용 결과로 표현하지 않는다.
+- 6단계 실제 프로젝트 적용은 Claude 또는 Codex 담당을 사용자가 정할 때까지 보류한다.
+
 ---
 
 ## 파일 구조
 
 | 경로 | 역할 |
 |------|------|
-| `app.py` | Streamlit UI (보라 테마·좌측 세로 네비; 지식 베이스·뉴스·커리큘럼·AI 꿀팁·보조 프로그램·소스·에이전트 탭). 본문 마크다운 렌더는 `_escape_tilde()`로 물결표(~) 취소선 깨짐 방지(범위는 엔대시 –) |
+| `app.py` | Streamlit UI (보라 테마·좌측 세로 네비; 지식 베이스·뉴스·커리큘럼·실습·체크·AI 꿀팁·보조 프로그램·소스·에이전트 탭). 본문 마크다운 렌더는 `_escape_tilde()`로 물결표(~) 취소선 깨짐 방지(범위는 엔대시 –) |
 | `agents/team_lead.py` | 팀장: 요청 라우팅, 결과 요약 |
 | `agents/educator.py` | 교육자: 문서/PPT 슬라이드 구조화 |
 | `agents/curator.py` | 큐레이터: DB 관리, 자동 태깅, 검색 |
@@ -277,9 +288,11 @@ Codex가 교육자 역할로 Canva MCP를 사용해 슬라이드를 생성한다
 | `tools/curriculum_tools.py` | 커리큘럼 CRUD, 슬라이드 JSON 저장, 세션 참고자료(`add_session_reference`) |
 | `tools/aux_tools.py` | 보조 프로그램 카탈로그 CRUD (전역) |
 | `tools/tips_tools.py` | AI 꿀팁 카탈로그 CRUD (전역, `add_tip`/`delete_tip`/`list_tips`) |
+| `tools/learning_tools.py` | Phase 4 실습·체크 구조화 데이터 로드 |
 | `tools/pptx_maker.py` | python-pptx 기반 PPT 생성 (흑백, Pretendard) |
 | `data/aux_programs.json` | 보조 프로그램(확장·단축키·툴) 전역 카탈로그 |
 | `data/ai_tips.json` | AI 사용 꿀팁(사용 노하우) 전역 컬렉션 |
+| `data/learning_assets.json` | 14개 분야 예시·실습·퀴즈·체크리스트 구조화 데이터 |
 | `data/sources.json` | 입력 소스 워치리스트(RSS·전문가 SNS) + 수집 이력(`seen`) |
 | `data/news.json` | 뉴스 스트림(수집된 RSS 항목) + 주간 브리핑 인덱스(`digests`) |
 | `data/inbox/` | 사용자가 넣은 원본 문서 |
@@ -290,6 +303,10 @@ Codex가 교육자 역할로 Canva MCP를 사용해 슬라이드를 생성한다
 | `data/outputs/` | 생성된 PPTX 파일들 |
 | `skills/pptx/` | PPTX 스킬 문서 + 디자인 명세 |
 | `directives/curriculum.md` | Codex 커리큘럼 관리 지침 |
+| `directives/phase4-learning-assets.md` | Phase 4 학습 자료 생성·격리 검증·배포 지침 |
+| `scripts/build_phase4_learning_assets.py` | KPK/TIP/CHK 42개에서 14강 전달 데이터를 안정 ID로 생성 |
+| `scripts/verify_phase4_learning_assets.py` | manifest·슬라이드·교재·Streamlit 화면 회귀검사 |
+| `skills/aihelper-learning-publisher/` | Phase 4 학습 자료 반복 배포 Skill |
 
 ---
 

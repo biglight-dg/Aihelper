@@ -1,0 +1,8 @@
+interface:
+  display_name: "AIHelper 학습 자료 배포"
+  short_description: "검증된 지식을 강의·실습·체크 자료로 안전하게 배포"
+  brand_color: "#7C5CFC"
+  default_prompt: "Use $aihelper-learning-publisher to build and validate the Phase 4 learning assets."
+
+policy:
+  allow_implicit_invocation: true
