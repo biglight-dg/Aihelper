@@ -38,7 +38,10 @@ def verify_data(data_root: Path) -> dict:
             raise AssertionError(f"hash mismatch: {rel}: {observed}")
 
     course = _read_json(data_root / "curricula" / "phase4-14-domain-foundations.json")
-    assets = _read_json(data_root / "learning_assets.json")["items"]
+    assets = [
+        item for item in _read_json(data_root / "learning_assets.json")["items"]
+        if str(item.get("id", "")).startswith("LRN-P4-")
+    ]
     tips = [
         item for item in _read_json(data_root / "ai_tips.json")["items"]
         if str(item.get("id", "")).startswith("TIP-P4-")
