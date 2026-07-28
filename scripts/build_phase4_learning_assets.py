@@ -487,12 +487,18 @@ def build_payloads(data_root: Path) -> dict[str, dict]:
     tips = [item for item in current_tips.get("items", []) if item.get("id") not in tip_ids]
     tips.extend(generated_tips)
 
+    current_learning_assets = _read_json(data_root / "learning_assets.json", {"items": []})
+    phase4_asset_ids = {item["id"] for item in assets}
+    preserved_assets = [
+        item for item in current_learning_assets.get("items", [])
+        if item.get("id") not in phase4_asset_ids
+    ]
     learning_assets = {
         "schema_version": "aihelper-learning-assets-v1",
         "course_id": COURSE_ID,
         "generated_at": GENERATED_AT,
         "flow": ["배우기", "예시", "해보기", "통과"],
-        "items": assets,
+        "items": preserved_assets + assets,
     }
     return {
         COURSE_PATH: curriculum,
@@ -519,7 +525,10 @@ def _sha256(data: bytes) -> str:
 def validate_payloads(payloads: dict[str, dict]) -> list[str]:
     errors = []
     course = payloads[COURSE_PATH]
-    assets = payloads["learning_assets.json"]["items"]
+    assets = [
+        item for item in payloads["learning_assets.json"]["items"]
+        if str(item.get("id", "")).startswith("LRN-P4-")
+    ]
     tips = [item for item in payloads["ai_tips.json"]["items"] if str(item.get("id", "")).startswith("TIP-P4-")]
     if len(course.get("sessions", [])) != 14:
         errors.append("course must contain 14 sessions")

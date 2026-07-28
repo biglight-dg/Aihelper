@@ -1916,7 +1916,11 @@ def render_curriculum():
 
             main_items = sorted(
                 [it for it in loaded
-                 if it[1].get("track", "main") not in ("elective", "special")],
+                 if it[1].get("track", "main") not in ("domain", "elective", "special")],
+                key=_order_key,
+            )
+            domain_items = sorted(
+                [it for it in loaded if it[1].get("track") == "domain"],
                 key=_order_key,
             )
             elective_items = [it for it in loaded
@@ -1937,6 +1941,8 @@ def render_curriculum():
                     badge = "특별 강의"
                 elif cur_data.get("track") == "elective":
                     badge = "선택 트랙"
+                elif cur_data.get("track") == "domain":
+                    badge = "분야별 과정"
                 elif isinstance(order, int):
                     badge = f"{order}단계"
                 else:
@@ -1988,6 +1994,12 @@ def render_curriculum():
                 st.markdown("#### 🎯 메인 학습 경로")
                 st.caption("아래 순서대로 수강하는 것을 권장합니다.")
                 _render_grid(main_items)
+
+            if domain_items:
+                st.divider()
+                st.markdown("#### 🧭 분야별 전문 과정")
+                st.caption("게임 개발, 마케팅, SNS 등 필요한 분야를 골라 교재·실습·평가·슬라이드까지 학습합니다.")
+                _render_grid(domain_items)
 
             if special_items:
                 st.divider()
@@ -2045,6 +2057,8 @@ def render_curriculum():
             pos = "특별 강의"
         elif curriculum.get("track") == "elective":
             pos = "선택 트랙"
+        elif curriculum.get("track") == "domain":
+            pos = "분야별 전문 과정"
         elif isinstance(order, int):
             pos = f"메인 경로 {order}단계"
         else:
@@ -2566,9 +2580,9 @@ LEARNING_TRACKS = (
 )
 
 
-def _open_phase4_lesson(week: int) -> None:
-    """학습 홈이나 실습 화면에서 Phase 4의 특정 강 공부 모드로 이동한다."""
-    st.session_state["cur_selected_id"] = PHASE4_COURSE_ID
+def _open_course_lesson(course_id: str, week: int = 0) -> None:
+    """학습 홈이나 실습 화면에서 선택한 과정의 공부 모드로 이동한다."""
+    st.session_state["cur_selected_id"] = course_id
     st.session_state["cur_selected_week"] = week
     st.session_state["nav_page"] = "📋 커리큘럼"
     st.rerun()
@@ -2580,14 +2594,50 @@ def _learning_map_banner(items: list[dict]) -> None:
         f'{int(item.get("order", 0)):02d}</div>'
         for item in items
     )
+    item_count = len(items)
     st.markdown(
         '<div class="learning-map">'
-        '<div class="learning-map__label">14-DOMAIN LEARNING MAP</div>'
+        f'<div class="learning-map__label">{item_count}-DOMAIN LEARNING MAP</div>'
         '<div class="learning-map__title">원리를 읽고, 예시를 본 뒤, 직접 만들고, 기준으로 통과합니다.</div>'
-        f'<div class="learning-map__rail" role="list" aria-label="14개 학습 주제">{cells}</div>'
+        f'<div class="learning-map__rail" role="list" aria-label="{item_count}개 분야별 전문 과정">{cells}</div>'
         '</div>',
         unsafe_allow_html=True,
     )
+
+
+def _learning_home_courses(items: list[dict]) -> list[dict]:
+    """42개 세부 자산을 학습 홈용 14개 분야 과정 카드로 접는다."""
+    domain_assets = sorted(
+        [item for item in items if str(item.get("course_id", "")).startswith("cur_domain_")],
+        key=lambda item: (item.get("course_order", 999), item.get("week", 999)),
+    )
+    if not domain_assets:
+        # Phase 4만 설치된 이전 데이터도 계속 표시한다.
+        return sorted(items, key=lambda item: item.get("order", 999))
+
+    session_counts: dict[str, int] = {}
+    for item in domain_assets:
+        course_id = item["course_id"]
+        session_counts[course_id] = session_counts.get(course_id, 0) + 1
+
+    courses = []
+    seen = set()
+    for item in domain_assets:
+        course_id = item["course_id"]
+        if course_id in seen:
+            continue
+        seen.add(course_id)
+        courses.append({
+            "id": f"home-{course_id}",
+            "course_id": course_id,
+            "course_title": item.get("course_title", item.get("part", item["title"])),
+            "title": item.get("course_title", item.get("part", item["title"])),
+            "category": item.get("category", "기타"),
+            "order": item.get("course_order", len(courses) + 1),
+            "week": 0,
+            "session_count": session_counts[course_id],
+        })
+    return courses
 
 
 def render_learning_home():
@@ -2597,8 +2647,9 @@ def render_learning_home():
         "14",
     )
     db = load_learning_assets_db()
-    items = sorted(db.get("items", []), key=lambda item: item.get("order", 999))
-    if not items:
+    all_items = db.get("items", [])
+    items = _learning_home_courses(all_items)
+    if not all_items:
         st.info("학습 자료가 없습니다. Phase 4 학습 자료를 먼저 생성하세요.")
         return
 
@@ -2625,13 +2676,22 @@ def render_learning_home():
                 )
                 st.caption(track["description"])
                 for item in track_items:
-                    label = f'{int(item.get("order", 0)):02d}강 · {item.get("category", "")} · {item["title"]}'
+                    if item.get("session_count"):
+                        label = (
+                            f'{int(item.get("order", 0)):02d} · {item.get("category", "")} · '
+                            f'{item["title"]} · {item["session_count"]}강'
+                        )
+                    else:
+                        label = f'{int(item.get("order", 0)):02d}강 · {item.get("category", "")} · {item["title"]}'
                     if st.button(
                         label,
                         key=f'home_lesson_{item["id"]}',
                         use_container_width=True,
                     ):
-                        _open_phase4_lesson(int(item.get("order", 0)))
+                        _open_course_lesson(
+                            item.get("course_id", PHASE4_COURSE_ID),
+                            int(item.get("week", item.get("order", 0))),
+                        )
 
     st.caption(
         "강의 예시는 학습용 예시입니다. 실제 프로젝트 적용 완료 여부는 원본·빌드·운영 상태를 확인한 뒤 별도로 판단합니다."
@@ -2662,9 +2722,16 @@ def _learning_flow_rail() -> None:
 
 
 def render_learning_lab():
-    _hero("실습·체크", "14개 분야를 예시, 실습, 퀴즈, 통과 기준으로 학습합니다.", "🧪")
+    _hero("실습·체크", "분야별 과정을 예시, 실습, 퀴즈, 통과 기준으로 학습합니다.", "🧪")
     db = load_learning_assets_db()
-    items = sorted(db.get("items", []), key=lambda item: item.get("order", 999))
+    items = sorted(
+        db.get("items", []),
+        key=lambda item: (
+            item.get("course_order", 0 if item.get("course_id") == PHASE4_COURSE_ID else 999),
+            item.get("week", item.get("order", 999)),
+            item.get("order", 999),
+        ),
+    )
     if not items:
         st.info("아직 실습 자료가 없습니다. Phase 4 학습 자료 생성 작업을 먼저 실행하세요.")
         return
@@ -2681,7 +2748,11 @@ def render_learning_lab():
             "학습 주제",
             [item["id"] for item in filtered],
             format_func=lambda asset_id: next(
-                f"{item.get('order', 0):02d} · {item['title']}" for item in filtered if item["id"] == asset_id
+                (
+                    f"{item.get('course_title', '통합 개요')} · "
+                    f"{item.get('week', item.get('order', 0)):02d}강 · {item['title']}"
+                )
+                for item in filtered if item["id"] == asset_id
             ),
             key="learning_asset_id",
         )
@@ -2698,7 +2769,10 @@ def render_learning_lab():
             use_container_width=True,
             type="primary",
         ):
-            _open_phase4_lesson(int(asset.get("order", 0)))
+            _open_course_lesson(
+                asset.get("course_id", PHASE4_COURSE_ID),
+                int(asset.get("week", asset.get("order", 0))),
+            )
     _learning_flow_rail()
 
     learn_tab, example_tab, practice_tab, pass_tab = st.tabs(
