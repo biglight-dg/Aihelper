@@ -608,6 +608,8 @@ def main() -> int:
 
     manifest = {
         "schema_version": "phase4-learning-build-manifest-v1",
+        "generated_by": "scripts/build_phase4_learning_assets.py",
+        "apply": bool(args.apply),
         "course_id": COURSE_ID,
         "source_root": str(source_root),
         "output_root": str(output_root),

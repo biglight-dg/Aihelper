@@ -116,16 +116,19 @@ def verify_app(data_root: Path) -> list[str]:
                 raise AssertionError(f"AppTest failed for {page}: {at.exception}")
             tested.append(page)
 
-        at = AppTest.from_file(str(REPO_ROOT / "app.py"))
-        at.session_state["auth_ok"] = True
-        at.session_state["role"] = "admin"
-        at.session_state["nav_page"] = "📋 커리큘럼"
-        at.session_state["cur_selected_id"] = COURSE_ID
-        at.session_state["cur_selected_week"] = 6
-        at.run(timeout=45)
-        if at.exception:
-            raise AssertionError(f"AppTest failed for course study mode: {at.exception}")
-        tested.append("커리큘럼 6강 공부 모드")
+        for week in range(1, 15):
+            at = AppTest.from_file(str(REPO_ROOT / "app.py"))
+            at.session_state["auth_ok"] = True
+            at.session_state["role"] = "admin"
+            at.session_state["nav_page"] = "📋 커리큘럼"
+            at.session_state["cur_selected_id"] = COURSE_ID
+            at.session_state["cur_selected_week"] = week
+            at.run(timeout=45)
+            if at.exception:
+                raise AssertionError(
+                    f"AppTest failed for course week {week} study mode: {at.exception}"
+                )
+            tested.append(f"커리큘럼 {week}강 공부 모드")
     finally:
         storage.DATA_ROOT = original_root
         storage._BACKEND = original_backend
@@ -139,9 +142,17 @@ def main() -> int:
     args = parser.parse_args()
     data_root = args.data_root.resolve()
 
-    report = {"data": verify_data(data_root)}
-    if not args.skip_app:
-        report["app_pages"] = verify_app(data_root)
+    try:
+        report = {"status": "passed", "data": verify_data(data_root)}
+        if not args.skip_app:
+            report["app_pages"] = verify_app(data_root)
+    except (AssertionError, FileNotFoundError, KeyError, ValueError, json.JSONDecodeError) as exc:
+        print(json.dumps({
+            "status": "failed",
+            "error_type": type(exc).__name__,
+            "message": str(exc),
+        }, ensure_ascii=True, indent=2))
+        return 1
     print(json.dumps(report, ensure_ascii=True, indent=2))
     return 0
 

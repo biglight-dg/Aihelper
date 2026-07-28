@@ -154,7 +154,7 @@ def build_slides_data(curriculum: dict) -> list[dict]:
                 "type": "visual_map",
                 "week": week_no,
                 "section": week_label,
-                "title": concept_title or "핵심 개념은 세 가지로 연결됩니다",
+                "title": concept_title or f"{concept_nodes[0]['title']}부터 결과물까지 연결합니다",
                 "nodes": concept_nodes[:3],
             })
             slide_num += 1
@@ -307,11 +307,16 @@ def build_slides_data(curriculum: dict) -> list[dict]:
 def validate_slides_data(slides: list[dict]) -> list[str]:
     """Return layout-risk messages for the fixed 4:5 slide renderer."""
     errors = []
+    generic_titles = {"핵심 모델", "평가셋", "핵심 정리", "핵심 개념", "작업 예시"}
     for index, slide in enumerate(slides, 1):
         stype = slide.get("type", "")
         label = f"{index}:{stype}"
-        if len(str(slide.get("title", ""))) > 72:
+        title = str(slide.get("title", "")).strip()
+        if len(title) > 72:
             errors.append(f"{label} title exceeds 72 chars")
+        normalized_title = re.sub(r"^\d+[.)]?\s*", "", title)
+        if normalized_title in generic_titles:
+            errors.append(f"{label} title is a generic label: {title}")
         if stype == "visual_map":
             nodes = slide.get("nodes", [])
             if not 1 <= len(nodes) <= 3:
